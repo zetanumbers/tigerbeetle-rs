@@ -1,0 +1,10 @@
+[package]
+name = "tigerbeetle"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tigerbeetle-sys = { version = "0.1.0", path = "sys" }
+
+[workspace]
+members = ["sys"]
