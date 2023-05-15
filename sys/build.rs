@@ -6,6 +6,8 @@ use std::{
 };
 
 use curl::easy::Easy;
+use quote::ToTokens;
+use syn::fold::Fold;
 use zip::ZipArchive;
 
 const TIGERBEETLE_ZIP_URL: &str =
@@ -118,56 +120,92 @@ fn main() {
                 .to_str()
                 .expect("wrapper.h out path is not valid unicode"),
         )
-        .bitfield_enum("TB_ACCOUNT_FLAGS")
-        .bitfield_enum("TB_TRANSFER_FLAGS")
-        .rustified_enum("TB_CREATE_ACCOUNT_RESULT")
-        .rustified_enum("TB_CREATE_TRANSFER_RESULT")
-        .rustified_enum("TB_OPERATION")
-        .rustified_enum("TB_PACKET_STATUS")
-        .rustified_enum("TB_STATUS")
-        .parse_callbacks(Box::new(TbCallbacks))
+        .default_enum_style(bindgen::EnumVariation::Rust {
+            non_exhaustive: true,
+        })
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .generate()
         .expect("generating tb_client bindings");
 
-    bindings
-        .write_to_file(out_dir.join("bindings.rs"))
-        .expect("writing tb_client bindings");
+    let mut bindings = syn::parse_file(&bindings.to_string()).unwrap();
+    let mut fold = TigerbeetleFold;
+    bindings = fold.fold_file(bindings);
+    std::fs::write(
+        out_dir.join("bindings.rs"),
+        bindings.into_token_stream().to_string(),
+    )
+    .expect("writing tb_client bindings");
 
     println!("OUT_DIR = {out_dir:?}");
 }
 
-#[derive(Debug)]
-struct TbCallbacks;
+struct TigerbeetleFold;
 
-impl bindgen::callbacks::ParseCallbacks for TbCallbacks {
-    fn enum_variant_name(
-        &self,
-        enum_name: Option<&str>,
-        original_variant_name: &str,
-        _variant_value: bindgen::callbacks::EnumVariantValue,
-    ) -> Option<String> {
-        let mut enum_name = enum_name?.strip_prefix("enum ")?;
+impl Fold for TigerbeetleFold {
+    fn fold_item_enum(&mut self, mut i: syn::ItemEnum) -> syn::ItemEnum {
+        let enum_name = i.ident.to_string();
+        let mut prefix_enum = enum_name.as_str();
 
-        if !enum_name.starts_with("TB_") {
-            return None;
-        }
+        if prefix_enum.starts_with("TB_") {
+            let mut variant_names: Vec<_> =
+                i.variants.iter().map(|v| v.ident.to_string()).collect();
 
-        loop {
-            if let Some(new_variant_name) = original_variant_name
-                .strip_prefix(enum_name)
-                .and_then(|v| v.strip_prefix('_'))
-            {
-                return Some(new_variant_name.into());
+            'remove_variant_prefix: {
+                while !variant_names.iter().all(|n| n.starts_with(prefix_enum)) {
+                    match prefix_enum.rsplit_once('_') {
+                        Some((n, _)) => prefix_enum = n,
+                        None => break 'remove_variant_prefix,
+                    }
+                }
+
+                variant_names.iter_mut().for_each(|n| {
+                    *n = n
+                        .strip_prefix(prefix_enum)
+                        .and_then(|n| n.strip_prefix('_'))
+                        .unwrap()
+                        .into()
+                });
             }
-            (enum_name, _) = enum_name.rsplit_once('_')?;
+
+            i.ident = syn::Ident::new(
+                &screaming_snake_case_into_camel_case(&enum_name),
+                i.ident.span(),
+            );
+
+            variant_names
+                .iter_mut()
+                .for_each(|n| *n = screaming_snake_case_into_camel_case(n));
+
+            for (v, n) in i.variants.iter_mut().zip(&variant_names) {
+                v.ident = syn::Ident::new(n, v.ident.span());
+            }
         }
+
+        syn::fold::fold_item_enum(self, i)
     }
 
-    fn include_file(&self, filename: &str) {
-        bindgen::CargoCallbacks.include_file(filename)
+    fn fold_path(&mut self, mut i: syn::Path) -> syn::Path {
+        if let Some(segment) = i.segments.last_mut() {
+            let ident = segment.ident.to_string();
+            if ident.starts_with("TB_") {
+                segment.ident = syn::Ident::new(
+                    &screaming_snake_case_into_camel_case(&ident),
+                    segment.ident.span(),
+                );
+            }
+        }
+        syn::fold::fold_path(self, i)
     }
+}
 
-    fn read_env_var(&self, key: &str) {
-        bindgen::CargoCallbacks.read_env_var(key)
+fn screaming_snake_case_into_camel_case(src: &str) -> String {
+    let mut dst = String::with_capacity(src.len());
+    for word in src.split('_') {
+        let mut chars = word.chars();
+        let Some(ch) = chars.next() else { continue };
+        assert!(ch.is_ascii_uppercase());
+        dst.push(ch);
+        dst.extend(chars.map(|c| c.to_ascii_lowercase()));
     }
+    dst
 }
