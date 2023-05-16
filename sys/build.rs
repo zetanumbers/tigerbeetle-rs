@@ -1,13 +1,14 @@
 use std::{
     env,
-    io::Cursor,
+    fs::File,
+    io::{Cursor, Write},
     path::{Path, PathBuf},
     process::Command,
 };
 
 use curl::easy::Easy;
-use quote::ToTokens;
-use syn::fold::Fold;
+use quote::quote;
+use syn::visit::Visit;
 use zip::ZipArchive;
 
 const TIGERBEETLE_ZIP_URL: &str =
@@ -120,45 +121,60 @@ fn main() {
                 .to_str()
                 .expect("wrapper.h out path is not valid unicode"),
         )
-        .default_enum_style(bindgen::EnumVariation::Rust {
-            non_exhaustive: true,
-        })
+        .default_enum_style(bindgen::EnumVariation::ModuleConsts)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .generate()
         .expect("generating tb_client bindings");
 
-    let mut bindings = syn::parse_file(&bindings.to_string()).unwrap();
-    let mut fold = TigerbeetleFold;
-    bindings = fold.fold_file(bindings);
-    std::fs::write(
-        out_dir.join("bindings.rs"),
-        bindings.into_token_stream().to_string(),
-    )
-    .expect("writing tb_client bindings");
+    bindings
+        .write_to_file(out_dir.join("bindings.rs"))
+        .expect("writing tb_client bindings");
 
-    println!("OUT_DIR = {out_dir:?}");
+    let bindings = syn::parse_file(&bindings.to_string()).unwrap();
+    let mut visitor = TigerbeetleVisitor::default();
+    visitor.visit_file(&bindings);
+    let mut f = std::io::BufWriter::new(File::create(out_dir.join("generated.rs")).unwrap());
+    write!(f, "{}", visitor.output).unwrap();
+
+    eprintln!("OUT_DIR = {out_dir:?}");
 }
 
-struct TigerbeetleFold;
+#[derive(Default)]
+struct TigerbeetleVisitor {
+    output: proc_macro2::TokenStream,
+}
 
-impl Fold for TigerbeetleFold {
-    fn fold_item_enum(&mut self, mut i: syn::ItemEnum) -> syn::ItemEnum {
-        let enum_name = i.ident.to_string();
+impl Visit<'_> for TigerbeetleVisitor {
+    fn visit_item_mod(&mut self, i: &syn::ItemMod) {
+        let enum_ident = i.ident.clone();
+        let enum_name = enum_ident.to_string();
         let mut prefix_enum = enum_name.as_str();
 
-        if prefix_enum.starts_with("TB_") {
-            let mut variant_names: Vec<_> =
-                i.variants.iter().map(|v| v.ident.to_string()).collect();
+        'process: {
+            if !prefix_enum.starts_with("TB_") {
+                break 'process;
+            }
+
+            let Some((_, content)) = &i.content else { break 'process };
+            let mut type_exists = false;
+            let mut variants = Vec::new();
+            for item in content {
+                match item {
+                    syn::Item::Const(c) => variants.push((c.ident.to_string(), c.ident.clone())),
+                    syn::Item::Type(t) if t.ident == "Type" && !type_exists => type_exists = true,
+                    _ => break 'process,
+                }
+            }
 
             'remove_variant_prefix: {
-                while !variant_names.iter().all(|n| n.starts_with(prefix_enum)) {
+                while !variants.iter().all(|(n, _)| n.starts_with(prefix_enum)) {
                     match prefix_enum.rsplit_once('_') {
                         Some((n, _)) => prefix_enum = n,
                         None => break 'remove_variant_prefix,
                     }
                 }
 
-                variant_names.iter_mut().for_each(|n| {
+                variants.iter_mut().for_each(|(n, _)| {
                     *n = n
                         .strip_prefix(prefix_enum)
                         .and_then(|n| n.strip_prefix('_'))
@@ -167,34 +183,23 @@ impl Fold for TigerbeetleFold {
                 });
             }
 
-            i.ident = syn::Ident::new(
+            variants.iter_mut().for_each(|(n, _)| {
+                *n = screaming_snake_case_into_camel_case(n);
+            });
+
+            let variants = variants.iter().map(|(n, v)| {
+                let n = syn::Ident::new(n, v.span());
+                quote!(#n = super:: #enum_ident :: #v)
+            });
+            let enum_ident = syn::Ident::new(
                 &screaming_snake_case_into_camel_case(&enum_name),
-                i.ident.span(),
+                enum_ident.span(),
             );
-
-            variant_names
-                .iter_mut()
-                .for_each(|n| *n = screaming_snake_case_into_camel_case(n));
-
-            for (v, n) in i.variants.iter_mut().zip(&variant_names) {
-                v.ident = syn::Ident::new(n, v.ident.span());
-            }
+            self.output
+                .extend(quote!(#[repr(u32)] pub enum #enum_ident { #(#variants),* }))
         }
 
-        syn::fold::fold_item_enum(self, i)
-    }
-
-    fn fold_path(&mut self, mut i: syn::Path) -> syn::Path {
-        if let Some(segment) = i.segments.last_mut() {
-            let ident = segment.ident.to_string();
-            if ident.starts_with("TB_") {
-                segment.ident = syn::Ident::new(
-                    &screaming_snake_case_into_camel_case(&ident),
-                    segment.ident.span(),
-                );
-            }
-        }
-        syn::fold::fold_path(self, i)
+        syn::visit::visit_item_mod(self, i)
     }
 }
 
