@@ -161,21 +161,27 @@ impl Visit<'_> for TigerbeetleVisitor {
             assert!(content.len() > 1);
             for item in content {
                 match item {
-                    syn::Item::Const(c) => variants.push((c.ident.to_string(), c.ident.clone())),
+                    syn::Item::Const(c) => {
+                        let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(i), ..}) = &*c.expr else {
+                            break 'process
+                        };
+                        let i = i.base10_parse::<u32>().unwrap();
+                        variants.push((c.ident.to_string(), c.ident.clone(), i));
+                    }
                     syn::Item::Type(t) if t.ident == "Type" && !type_exists => type_exists = true,
                     _ => break 'process,
                 }
             }
 
             'remove_variant_prefix: {
-                while !variants.iter().all(|(n, _)| n.starts_with(prefix_enum)) {
+                while !variants.iter().all(|(n, _, _)| n.starts_with(prefix_enum)) {
                     match prefix_enum.rsplit_once('_') {
                         Some((n, _)) => prefix_enum = n,
                         None => break 'remove_variant_prefix,
                     }
                 }
 
-                variants.iter_mut().for_each(|(n, _)| {
+                variants.iter_mut().for_each(|(n, _, _)| {
                     *n = n
                         .strip_prefix(prefix_enum)
                         .and_then(|n| n.strip_prefix('_'))
@@ -189,33 +195,57 @@ impl Visit<'_> for TigerbeetleVisitor {
             let mut new_enum_ident = syn::Ident::new(&new_enum_name, enum_ident.span());
 
             if enum_name.ends_with("_FLAGS") {
-                let variants = variants.iter().map(|(n, v)| {
+                let variants = variants.iter().map(|(n, v, _)| {
                     let n = syn::Ident::new(n, v.span());
                     quote!(const #n = super:: #enum_ident :: #v as u16;)
                 });
                 self.output.extend(quote! {
                     ::bitflags::bitflags! {
                         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-                        pub struct #new_enum_ident: u16 { #(#variants)* }
+                        pub struct #new_enum_ident: u16 {
+                            #(#variants)*
+                        }
                     }
                 })
             } else {
-                variants.iter_mut().for_each(|(n, _)| {
+                variants.iter_mut().for_each(|(n, _, _)| {
                     *n = screaming_snake_case_into_camel_case(n);
                 });
 
                 let mut uncategorized_variant = false;
+                let mut extra = proc_macro2::TokenStream::new();
                 if let Some(n) = new_enum_name.strip_suffix("Result") {
                     new_enum_name = format!("{n}ErrorKind");
                     new_enum_ident = syn::Ident::new(&new_enum_name, new_enum_ident.span());
-                    assert_eq!(variants.first().unwrap().0, "Ok");
+                    let first_variant = variants.first().unwrap();
+                    assert_eq!(first_variant.0, "Ok");
+                    assert_eq!(first_variant.2, 0);
                     variants.remove(0);
                     uncategorized_variant = true;
+
+                    let mut j = 0;
+                    for (_, _, i) in &variants {
+                        j += 1;
+                        assert_eq!(*i, j);
+                    }
+                    let minmax_prefix = enum_name.strip_suffix("_RESULT").unwrap();
+                    let min_name = syn::Ident::new(
+                        &format!("MIN_{minmax_prefix}_ERROR_CODE"),
+                        proc_macro2::Span::call_site(),
+                    );
+                    let max_name = syn::Ident::new(
+                        &format!("MAX_{minmax_prefix}_ERROR_CODE"),
+                        proc_macro2::Span::call_site(),
+                    );
+                    extra = quote! {
+                        pub const #min_name: u32 = 1;
+                        pub const #max_name: u32 = #j;
+                    };
                 }
 
                 let variants = variants
                     .iter()
-                    .map(|(n, v)| {
+                    .map(|(n, v, _)| {
                         let n = syn::Ident::new(n, v.span());
                         quote!(#n = super:: #enum_ident :: #v)
                     })
@@ -232,6 +262,7 @@ impl Visit<'_> for TigerbeetleVisitor {
                         #(#variants),*
                     }
                 });
+                self.output.extend(extra);
             }
         }
 
