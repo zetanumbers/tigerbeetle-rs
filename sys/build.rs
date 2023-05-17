@@ -231,13 +231,16 @@ impl Visit<'_> for TigerbeetleVisitor {
                         repr_type = "u8";
                         errorize = true;
                     }
-                    "Operation" => repr_type = "u8",
+                    "Operation" => {
+                        new_enum_name = "OperationKind".to_string();
+                        new_enum_ident = syn::Ident::new(&new_enum_name, new_enum_ident.span());
+                        repr_type = "u8"
+                    }
                     _ => (),
                 }
 
                 let repr_type = syn::Ident::new(repr_type, proc_macro2::Span::call_site());
 
-                let mut extra = proc_macro2::TokenStream::new();
                 if errorize {
                     let first_variant = variants.first().unwrap();
                     assert!(
@@ -247,31 +250,34 @@ impl Visit<'_> for TigerbeetleVisitor {
                     );
                     assert_eq!(first_variant.2, 0);
                     variants.remove(0);
-
-                    let mut j = 0;
-                    for (_, _, i) in &variants {
-                        j += 1;
-                        assert_eq!(*i, j);
-                    }
-                    let minmax_prefix = enum_name
-                        .strip_suffix("_RESULT")
-                        .unwrap_or(&enum_name)
-                        .strip_prefix("TB_")
-                        .unwrap();
-                    let min_name = syn::Ident::new(
-                        &format!("MIN_{minmax_prefix}_ERROR_CODE"),
-                        proc_macro2::Span::call_site(),
-                    );
-                    let max_name = syn::Ident::new(
-                        &format!("MAX_{minmax_prefix}_ERROR_CODE"),
-                        proc_macro2::Span::call_site(),
-                    );
-                    let j = syn::LitInt::new(&format!("{j}"), proc_macro2::Span::call_site());
-                    extra = quote! {
-                        pub const #min_name: #repr_type = 1;
-                        pub const #max_name: #repr_type = #j;
-                    };
                 }
+
+                let mut variants_iter = variants.iter();
+                let mut j = variants_iter.next().unwrap().2;
+                for (_, _, i) in variants_iter {
+                    j += 1;
+                    assert_eq!(*i, j);
+                }
+
+                let minmax_prefix = enum_name
+                    .strip_suffix("_RESULT")
+                    .unwrap_or(&enum_name)
+                    .strip_prefix("TB_")
+                    .unwrap();
+                let error = if errorize { "_ERROR" } else { "" };
+                let min_name = syn::Ident::new(
+                    &format!("MIN_{minmax_prefix}{error}_CODE"),
+                    proc_macro2::Span::call_site(),
+                );
+                let max_name = syn::Ident::new(
+                    &format!("MAX_{minmax_prefix}{error}_CODE"),
+                    proc_macro2::Span::call_site(),
+                );
+                let j = syn::LitInt::new(&j.to_string(), proc_macro2::Span::call_site());
+                let extra = quote! {
+                    pub const #min_name: #repr_type = 1;
+                    pub const #max_name: #repr_type = #j;
+                };
 
                 let variants = variants
                     .iter()
@@ -279,12 +285,10 @@ impl Visit<'_> for TigerbeetleVisitor {
                         let n = syn::Ident::new(n, v.span());
                         quote!(#n = super:: #enum_ident :: #v as #repr_type)
                     })
-                    .chain(errorize.then(|| {
-                        quote!(
-                            #[doc(hidden)]
-                            UnstableUncategorized
-                        )
-                    }));
+                    .chain(std::iter::once(quote!(
+                        #[doc(hidden)]
+                        UnstableUncategorized
+                    )));
                 self.output.extend(quote! {
                     #[non_exhaustive]
                     #[repr( #repr_type )]
