@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 
+[dependencies]
+bitflags = "2.3.0"
+
 [build-dependencies]
 bindgen = "0.65.1"
 curl = "0.4.44"

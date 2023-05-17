@@ -183,20 +183,34 @@ impl Visit<'_> for TigerbeetleVisitor {
                 });
             }
 
-            variants.iter_mut().for_each(|(n, _)| {
-                *n = screaming_snake_case_into_camel_case(n);
-            });
-
-            let variants = variants.iter().map(|(n, v)| {
-                let n = syn::Ident::new(n, v.span());
-                quote!(#n = super:: #enum_ident :: #v)
-            });
-            let enum_ident = syn::Ident::new(
-                &screaming_snake_case_into_camel_case(&enum_name),
+            let new_enum_ident = syn::Ident::new(
+                &screaming_snake_case_into_camel_case(enum_name.strip_prefix("TB_").unwrap()),
                 enum_ident.span(),
             );
-            self.output
-                .extend(quote!(#[repr(u32)] pub enum #enum_ident { #(#variants),* }))
+
+            if enum_name.ends_with("_FLAGS") {
+                let variants = variants.iter().map(|(n, v)| {
+                    let n = syn::Ident::new(n, v.span());
+                    quote!(const #n = super:: #enum_ident :: #v as u16;)
+                });
+                self.output.extend(quote! {
+                    ::bitflags::bitflags! {
+                        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+                        pub struct #new_enum_ident: u16 { #(#variants)* }
+                    }
+                })
+            } else {
+                variants.iter_mut().for_each(|(n, _)| {
+                    *n = screaming_snake_case_into_camel_case(n);
+                });
+
+                let variants = variants.iter().map(|(n, v)| {
+                    let n = syn::Ident::new(n, v.span());
+                    quote!(#n = super:: #enum_ident :: #v)
+                });
+                self.output
+                    .extend(quote!(#[repr(u32)] pub enum #new_enum_ident { #(#variants),* }))
+            }
         }
 
         syn::visit::visit_item_mod(self, i)
