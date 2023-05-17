@@ -2,6 +2,7 @@
 name = "tigerbeetle-sys"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [build-dependencies]
 bindgen = "0.65.1"
