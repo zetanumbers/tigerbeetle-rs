@@ -212,23 +212,52 @@ impl Visit<'_> for TigerbeetleVisitor {
                     *n = screaming_snake_case_into_camel_case(n);
                 });
 
-                let mut uncategorized_variant = false;
-                let mut extra = proc_macro2::TokenStream::new();
+                let mut errorize = false;
+                let mut repr_type = "u32";
                 if let Some(n) = new_enum_name.strip_suffix("Result") {
                     new_enum_name = format!("{n}ErrorKind");
                     new_enum_ident = syn::Ident::new(&new_enum_name, new_enum_ident.span());
+                    errorize = true;
+                }
+                match new_enum_name.as_str() {
+                    "Status" => {
+                        new_enum_name = "StatusErrorKind".to_string();
+                        new_enum_ident = syn::Ident::new(&new_enum_name, new_enum_ident.span());
+                        errorize = true;
+                    }
+                    "PacketStatus" => {
+                        new_enum_name = "PacketStatusErrorKind".to_string();
+                        new_enum_ident = syn::Ident::new(&new_enum_name, new_enum_ident.span());
+                        repr_type = "u8";
+                        errorize = true;
+                    }
+                    "Operation" => repr_type = "u8",
+                    _ => (),
+                }
+
+                let repr_type = syn::Ident::new(repr_type, proc_macro2::Span::call_site());
+
+                let mut extra = proc_macro2::TokenStream::new();
+                if errorize {
                     let first_variant = variants.first().unwrap();
-                    assert_eq!(first_variant.0, "Ok");
+                    assert!(
+                        matches!(first_variant.0.as_str(), "Ok" | "Success"),
+                        "variant name is {:?}",
+                        first_variant.0,
+                    );
                     assert_eq!(first_variant.2, 0);
                     variants.remove(0);
-                    uncategorized_variant = true;
 
                     let mut j = 0;
                     for (_, _, i) in &variants {
                         j += 1;
                         assert_eq!(*i, j);
                     }
-                    let minmax_prefix = enum_name.strip_suffix("_RESULT").unwrap();
+                    let minmax_prefix = enum_name
+                        .strip_suffix("_RESULT")
+                        .unwrap_or(&enum_name)
+                        .strip_prefix("TB_")
+                        .unwrap();
                     let min_name = syn::Ident::new(
                         &format!("MIN_{minmax_prefix}_ERROR_CODE"),
                         proc_macro2::Span::call_site(),
@@ -237,9 +266,10 @@ impl Visit<'_> for TigerbeetleVisitor {
                         &format!("MAX_{minmax_prefix}_ERROR_CODE"),
                         proc_macro2::Span::call_site(),
                     );
+                    let j = syn::LitInt::new(&format!("{j}"), proc_macro2::Span::call_site());
                     extra = quote! {
-                        pub const #min_name: u32 = 1;
-                        pub const #max_name: u32 = #j;
+                        pub const #min_name: #repr_type = 1;
+                        pub const #max_name: #repr_type = #j;
                     };
                 }
 
@@ -247,9 +277,9 @@ impl Visit<'_> for TigerbeetleVisitor {
                     .iter()
                     .map(|(n, v, _)| {
                         let n = syn::Ident::new(n, v.span());
-                        quote!(#n = super:: #enum_ident :: #v)
+                        quote!(#n = super:: #enum_ident :: #v as #repr_type)
                     })
-                    .chain(uncategorized_variant.then(|| {
+                    .chain(errorize.then(|| {
                         quote!(
                             #[doc(hidden)]
                             UnstableUncategorized
@@ -257,7 +287,7 @@ impl Visit<'_> for TigerbeetleVisitor {
                     }));
                 self.output.extend(quote! {
                     #[non_exhaustive]
-                    #[repr(u32)]
+                    #[repr( #repr_type )]
                     pub enum #new_enum_ident {
                         #(#variants),*
                     }
