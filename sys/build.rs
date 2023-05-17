@@ -130,20 +130,22 @@ fn main() {
         .write_to_file(out_dir.join("bindings.rs"))
         .expect("writing tb_client bindings");
 
-    let bindings = syn::parse_file(&bindings.to_string()).unwrap();
+    if std::env::var("CARGO_FEATURE_GENERATED_SAFE").is_ok() {
+        let bindings = syn::parse_file(&bindings.to_string()).unwrap();
 
-    let mut visitor = TigerbeetleVisitor::default();
-    visitor.visit_file(&bindings);
+        let mut visitor = TigerbeetleVisitor::default();
+        visitor.visit_file(&bindings);
 
-    let generated_path = out_dir.join("generated.rs");
-    let mut f = std::io::BufWriter::new(File::create(&generated_path).unwrap());
-    write!(f, "{}", visitor.output).unwrap();
-    drop(f);
+        let generated_path = out_dir.join("generated.rs");
+        let mut f = std::io::BufWriter::new(File::create(&generated_path).unwrap());
+        write!(f, "{}", visitor.output).unwrap();
+        drop(f);
 
-    Command::new(std::env::var("RUSTFMT").unwrap_or_else(|_| "rustfmt".into()))
-        .arg(&generated_path)
-        .status()
-        .unwrap();
+        Command::new(std::env::var("RUSTFMT").unwrap_or_else(|_| "rustfmt".into()))
+            .arg(&generated_path)
+            .status()
+            .unwrap();
+    }
 }
 
 #[derive(Default)]

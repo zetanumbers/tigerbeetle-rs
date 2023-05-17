@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 
+[features]
+generated-safe = []
+
 [dependencies]
 bitflags = "2.3.0"
 
