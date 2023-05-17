@@ -158,6 +158,7 @@ impl Visit<'_> for TigerbeetleVisitor {
             let Some((_, content)) = &i.content else { break 'process };
             let mut type_exists = false;
             let mut variants = Vec::new();
+            assert!(content.len() > 1);
             for item in content {
                 match item {
                     syn::Item::Const(c) => variants.push((c.ident.to_string(), c.ident.clone())),
@@ -183,10 +184,9 @@ impl Visit<'_> for TigerbeetleVisitor {
                 });
             }
 
-            let new_enum_ident = syn::Ident::new(
-                &screaming_snake_case_into_camel_case(enum_name.strip_prefix("TB_").unwrap()),
-                enum_ident.span(),
-            );
+            let mut new_enum_name =
+                screaming_snake_case_into_camel_case(enum_name.strip_prefix("TB_").unwrap());
+            let mut new_enum_ident = syn::Ident::new(&new_enum_name, enum_ident.span());
 
             if enum_name.ends_with("_FLAGS") {
                 let variants = variants.iter().map(|(n, v)| {
@@ -204,12 +204,34 @@ impl Visit<'_> for TigerbeetleVisitor {
                     *n = screaming_snake_case_into_camel_case(n);
                 });
 
-                let variants = variants.iter().map(|(n, v)| {
-                    let n = syn::Ident::new(n, v.span());
-                    quote!(#n = super:: #enum_ident :: #v)
+                let mut uncategorized_variant = false;
+                if let Some(n) = new_enum_name.strip_suffix("Result") {
+                    new_enum_name = format!("{n}ErrorKind");
+                    new_enum_ident = syn::Ident::new(&new_enum_name, new_enum_ident.span());
+                    assert_eq!(variants.first().unwrap().0, "Ok");
+                    variants.remove(0);
+                    uncategorized_variant = true;
+                }
+
+                let variants = variants
+                    .iter()
+                    .map(|(n, v)| {
+                        let n = syn::Ident::new(n, v.span());
+                        quote!(#n = super:: #enum_ident :: #v)
+                    })
+                    .chain(uncategorized_variant.then(|| {
+                        quote!(
+                            #[doc(hidden)]
+                            UnstableUncategorized
+                        )
+                    }));
+                self.output.extend(quote! {
+                    #[non_exhaustive]
+                    #[repr(u32)]
+                    pub enum #new_enum_ident {
+                        #(#variants),*
+                    }
                 });
-                self.output
-                    .extend(quote!(#[repr(u32)] pub enum #new_enum_ident { #(#variants),* }))
             }
         }
 
