@@ -299,6 +299,7 @@ impl Visit<'_> for TigerbeetleVisitor {
                         UnstableUncategorized
                     )));
                 self.output.extend(quote! {
+		    #[derive(Debug, Clone, Copy)]
                     #[non_exhaustive]
                     #[repr( #repr_type )]
                     pub enum #new_enum_ident {
@@ -329,7 +330,7 @@ impl bindgen::callbacks::ParseCallbacks for TigerbeetleCallbacks {
             ..
         } = info
         {
-            out.push("::bytemuck::Pod".into());
+            out.extend(["::bytemuck::Pod".into(), "::bytemuck::Zeroable".into()]);
         };
         out.append(&mut bindgen::CargoCallbacks.add_derives(info));
         out
