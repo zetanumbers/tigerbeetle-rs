@@ -122,7 +122,7 @@ fn main() {
                 .expect("wrapper.h out path is not valid unicode"),
         )
         .default_enum_style(bindgen::EnumVariation::ModuleConsts)
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(TigerbeetleCallbacks))
         .generate()
         .expect("generating tb_client bindings");
 
@@ -310,6 +310,105 @@ impl Visit<'_> for TigerbeetleVisitor {
         }
 
         syn::visit::visit_item_mod(self, i)
+    }
+}
+
+#[derive(Debug)]
+struct TigerbeetleCallbacks;
+
+impl bindgen::callbacks::ParseCallbacks for TigerbeetleCallbacks {
+    fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
+        let mut out = Vec::new();
+        if let bindgen::callbacks::DeriveInfo {
+            kind: bindgen::callbacks::TypeKind::Struct,
+            name:
+                "tb_account_t"
+                | "tb_create_accounts_result_t"
+                | "tb_transfer_t"
+                | "tb_create_transfers_result_t",
+            ..
+        } = info
+        {
+            out.push("::bytemuck::Pod".into());
+        };
+        out.append(&mut bindgen::CargoCallbacks.add_derives(info));
+        out
+    }
+
+    fn will_parse_macro(&self, name: &str) -> bindgen::callbacks::MacroParsingBehavior {
+        bindgen::CargoCallbacks.will_parse_macro(name)
+    }
+
+    fn generated_name_override(
+        &self,
+        item_info: bindgen::callbacks::ItemInfo<'_>,
+    ) -> Option<String> {
+        bindgen::CargoCallbacks.generated_name_override(item_info)
+    }
+
+    fn generated_link_name_override(
+        &self,
+        item_info: bindgen::callbacks::ItemInfo<'_>,
+    ) -> Option<String> {
+        bindgen::CargoCallbacks.generated_link_name_override(item_info)
+    }
+
+    fn int_macro(&self, name: &str, value: i64) -> Option<bindgen::callbacks::IntKind> {
+        bindgen::CargoCallbacks.int_macro(name, value)
+    }
+
+    fn str_macro(&self, name: &str, value: &[u8]) {
+        bindgen::CargoCallbacks.str_macro(name, value)
+    }
+
+    fn func_macro(&self, name: &str, value: &[&[u8]]) {
+        bindgen::CargoCallbacks.func_macro(name, value)
+    }
+
+    fn enum_variant_behavior(
+        &self,
+        enum_name: Option<&str>,
+        original_variant_name: &str,
+        variant_value: bindgen::callbacks::EnumVariantValue,
+    ) -> Option<bindgen::callbacks::EnumVariantCustomBehavior> {
+        bindgen::CargoCallbacks.enum_variant_behavior(
+            enum_name,
+            original_variant_name,
+            variant_value,
+        )
+    }
+
+    fn enum_variant_name(
+        &self,
+        enum_name: Option<&str>,
+        original_variant_name: &str,
+        variant_value: bindgen::callbacks::EnumVariantValue,
+    ) -> Option<String> {
+        bindgen::CargoCallbacks.enum_variant_name(enum_name, original_variant_name, variant_value)
+    }
+
+    fn item_name(&self, original_item_name: &str) -> Option<String> {
+        bindgen::CargoCallbacks.item_name(original_item_name)
+    }
+
+    fn include_file(&self, filename: &str) {
+        bindgen::CargoCallbacks.include_file(filename)
+    }
+
+    fn read_env_var(&self, key: &str) {
+        bindgen::CargoCallbacks.read_env_var(key)
+    }
+
+    fn blocklisted_type_implements_trait(
+        &self,
+        name: &str,
+        derive_trait: bindgen::callbacks::DeriveTrait,
+    ) -> Option<bindgen::callbacks::ImplementsTrait> {
+        bindgen::CargoCallbacks.blocklisted_type_implements_trait(name, derive_trait)
+    }
+
+    fn process_comment(&self, comment: &str) -> Option<String> {
+        bindgen::CargoCallbacks.process_comment(comment)
     }
 }
 
