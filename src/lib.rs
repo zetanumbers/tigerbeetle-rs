@@ -26,7 +26,7 @@ impl Client {
                 address
                     .len()
                     .try_into()
-                    .expect("address length is greater than `u32::MAX`"),
+                    .map_err(|_| ClientCreationErrorKind::AddressInvalid)?,
                 concurrent_packets,
                 0,
                 Some(on_completion),
@@ -91,7 +91,7 @@ impl std::fmt::Display for ClientCreationError {
 impl std::error::Error for ClientCreationError {}
 
 impl From<ClientCreationErrorKind> for ClientCreationError {
-    /// Panics on `ClientCreationErrorKind::UnstableUncategorized` variant.
+    /// Panics on hidden `ClientCreationErrorKind::UnstableUncategorized` variant.
     fn from(value: ClientCreationErrorKind) -> Self {
         let code = value as _;
         if !Self::CODE_RANGE.contains(&code) {
