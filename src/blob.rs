@@ -2,7 +2,8 @@ use std::{alloc, mem, ptr};
 
 use crate::{sys, sys_safe};
 
-/// You may reference blob contents while blob is valid
+/// You may reference blob contents through poiner from `Blob::as_ptr` while
+/// blob is valid.
 pub struct Blob {
     ptr: ptr::NonNull<u8>,
     item_count: usize,

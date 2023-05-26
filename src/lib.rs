@@ -77,6 +77,20 @@ impl Client {
         accounts: Vec<Account>,
     ) -> Result<Vec<CreateAccountsError>, SendError> {
         let data = Blob::from_vec(accounts);
+
+        let mut res = self.submit(data).await?.into_vec();
+        res.retain(|raw| CreateAccountsError::try_from_raw(*raw).is_some());
+
+        // SAFETY: just transposing original vec into vec of transparent `Copy` newtypes
+        Ok(unsafe { transpose_vec::<sys::tb_create_accounts_result_t, CreateAccountsError>(res) })
+    }
+
+    pub async fn lookup_accounts(&self, ids: Vec<u128>) -> Result<Vec<Account>, SendError> {
+        let data = Blob::from_vec(ids);
+        Ok(self.submit(data).await?.into_vec())
+    }
+
+    async fn submit(&self, data: Blob) -> Result<Blob, SendError> {
         let data_ptr = data.as_ptr();
         let data_size = data
             .byte_size()
@@ -113,23 +127,9 @@ impl Client {
 
         unsafe { sys::tb_client_submit(self.shared.raw, &mut packet_list) };
 
-        let mut res: Vec<sys::tb_create_accounts_result_t> = reply_receiver
+        reply_receiver
             .await
-            .expect("reply_sender has been closed, probably due to on_completion call panic")?
-            .into_vec();
-
-        res.retain(|raw| CreateAccountsError::try_from_raw(*raw).is_some());
-
-        let res = {
-            let length = res.len();
-            let capacity = res.capacity();
-            let ptr = res.as_mut_ptr();
-            mem::forget(res);
-            // SAFETY: just transposing original vec into vec of transparent `Copy` newtypes
-            unsafe { Vec::from_raw_parts(ptr.cast::<CreateAccountsError>(), length, capacity) }
-        };
-
-        Ok(res)
+            .expect("reply_sender has been closed, probably due to on_completion call panic")
     }
 }
 
@@ -176,4 +176,12 @@ unsafe extern "C" fn on_completion(
         };
         let _ = user_data.reply_sender.send(res);
     });
+}
+
+unsafe fn transpose_vec<T, U>(mut v: Vec<T>) -> Vec<U> {
+    let length = v.len();
+    let capacity = v.capacity();
+    let ptr = v.as_mut_ptr();
+    mem::forget(v);
+    Vec::from_raw_parts(ptr.cast::<U>(), length, capacity)
 }
