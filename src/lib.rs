@@ -22,8 +22,8 @@ pub use sys_safe::TransferFlags;
 pub use crate::{
     account::{Account, AccountFlags, AccountRaw},
     error::{
-        ClientCreationErrorKind, CreateAccountError, CreateAccountErrorKind, CreateAccountsError,
-        CreateTransferError, CreateTransferErrorKind, CreateTransfersError, NewClientError,
+        CreateAccountError, CreateAccountErrorKind, CreateAccountsError, CreateTransferError,
+        CreateTransferErrorKind, CreateTransfersError, NewClientError, NewClientErrorKind,
         SendError, SendErrorKind,
     },
 };
@@ -42,7 +42,7 @@ impl Client {
         unsafe {
             let packet_count = concurrent_packets
                 .try_into()
-                .map_err(|_| ClientCreationErrorKind::PacketsCountInvalid)?;
+                .map_err(|_| NewClientErrorKind::PacketsCountInvalid)?;
             let mut raw = mem::zeroed();
             let mut pool = mem::zeroed();
             let status = sys::tb_client_init(
@@ -53,7 +53,7 @@ impl Client {
                 address
                     .len()
                     .try_into()
-                    .map_err(|_| ClientCreationErrorKind::AddressInvalid)?,
+                    .map_err(|_| NewClientErrorKind::AddressInvalid)?,
                 concurrent_packets,
                 0,
                 Some(on_completion),

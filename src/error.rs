@@ -4,7 +4,7 @@ use crate::{sys, sys_safe};
 
 pub use sys_safe::{
     CreateAccountErrorKind, CreateTransferErrorKind, PacketStatusErrorKind as SendErrorKind,
-    StatusErrorKind as ClientCreationErrorKind,
+    StatusErrorKind as NewClientErrorKind,
 };
 
 #[derive(Clone, Copy)]
@@ -39,13 +39,13 @@ impl NewClientError {
     const CODE_RANGE: std::ops::RangeInclusive<u32> =
         sys_safe::MIN_STATUS_ERROR_CODE..=sys_safe::MAX_STATUS_ERROR_CODE;
 
-    pub fn kind(self) -> ClientCreationErrorKind {
+    pub fn kind(self) -> NewClientErrorKind {
         let code = self.0.get();
         if Self::CODE_RANGE.contains(&code) {
             // SAFETY: We checked if it's in range right above
             unsafe { std::mem::transmute(code) }
         } else {
-            ClientCreationErrorKind::UnstableUncategorized
+            NewClientErrorKind::UnstableUncategorized
         }
     }
 }
@@ -53,7 +53,7 @@ impl NewClientError {
 impl std::fmt::Debug for NewClientError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let code = self.0.get();
-        let mut d = f.debug_tuple("ClientCreationError");
+        let mut d = f.debug_tuple("NewClientErrorError");
         if Self::CODE_RANGE.contains(&code) {
             d.field(&self.kind());
         } else {
@@ -71,12 +71,12 @@ impl std::fmt::Display for NewClientError {
 
 impl std::error::Error for NewClientError {}
 
-impl From<ClientCreationErrorKind> for NewClientError {
-    /// Panics on hidden `ClientCreationErrorKind::UnstableUncategorized` variant.
-    fn from(value: ClientCreationErrorKind) -> Self {
+impl From<NewClientErrorKind> for NewClientError {
+    /// Panics on hidden `NewClientErrorKind::UnstableUncategorized` variant.
+    fn from(value: NewClientErrorKind) -> Self {
         let code = value as _;
         if !Self::CODE_RANGE.contains(&code) {
-            panic!("ClientCreationErrorKind::{value:?}")
+            panic!("NewClientErrorKind::{value:?}")
         }
         NewClientError(NonZeroU32::new(code).unwrap())
     }
