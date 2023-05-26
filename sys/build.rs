@@ -122,7 +122,9 @@ fn main() {
                 .expect("wrapper.h out path is not valid unicode"),
         )
         .default_enum_style(bindgen::EnumVariation::ModuleConsts)
-        .parse_callbacks(Box::new(TigerbeetleCallbacks))
+        .parse_callbacks(Box::new(TigerbeetleCallbacks {
+            out_dir: out_dir.clone(),
+        }))
         .generate()
         .expect("generating tb_client bindings");
 
@@ -299,7 +301,7 @@ impl Visit<'_> for TigerbeetleVisitor {
                         UnstableUncategorized
                     )));
                 self.output.extend(quote! {
-		    #[derive(Debug, Clone, Copy)]
+                    #[derive(Debug, Clone, Copy)]
                     #[non_exhaustive]
                     #[repr( #repr_type )]
                     pub enum #new_enum_ident {
@@ -315,7 +317,9 @@ impl Visit<'_> for TigerbeetleVisitor {
 }
 
 #[derive(Debug)]
-struct TigerbeetleCallbacks;
+struct TigerbeetleCallbacks {
+    out_dir: PathBuf,
+}
 
 impl bindgen::callbacks::ParseCallbacks for TigerbeetleCallbacks {
     fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
@@ -393,7 +397,9 @@ impl bindgen::callbacks::ParseCallbacks for TigerbeetleCallbacks {
     }
 
     fn include_file(&self, filename: &str) {
-        bindgen::CargoCallbacks.include_file(filename)
+        if !Path::new(filename).starts_with(&self.out_dir) {
+            bindgen::CargoCallbacks.include_file(filename)
+        }
     }
 
     fn read_env_var(&self, key: &str) {
