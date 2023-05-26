@@ -16,11 +16,15 @@ use futures_channel::oneshot as async_oneshot;
 use resource_pool::ResourcePool;
 use tigerbeetle_sys::{self as sys, generated_safe as sys_safe};
 
+pub use sys::tb_transfer_t as Transfer;
+pub use sys_safe::TransferFlags;
+
 pub use crate::{
     account::{Account, AccountFlags, AccountRaw},
     error::{
-        ClientCreationError, ClientCreationErrorKind, CreateAccountError, CreateAccountErrorKind,
-        CreateAccountsError, SendError, SendErrorKind,
+        ClientCreationErrorKind, CreateAccountError, CreateAccountErrorKind, CreateAccountsError,
+        CreateTransferError, CreateTransferErrorKind, CreateTransfersError, NewClientError,
+        SendError, SendErrorKind,
     },
 };
 
@@ -34,7 +38,7 @@ impl Client {
         cluster_id: u32,
         address: &str,
         concurrent_packets: u32,
-    ) -> Result<Self, ClientCreationError> {
+    ) -> Result<Self, NewClientError> {
         unsafe {
             let packet_count = concurrent_packets
                 .try_into()
@@ -55,7 +59,7 @@ impl Client {
                 Some(on_completion),
             );
             if let Some(c) = NonZeroU32::new(status) {
-                return Err(ClientCreationError(c));
+                return Err(NewClientError(c));
             }
             Ok(Self {
                 shared: Arc::new(ClientUnique {
@@ -78,7 +82,10 @@ impl Client {
     ) -> Result<Vec<CreateAccountsError>, SendError> {
         let data = Blob::from_vec(accounts);
 
-        let mut res = self.submit(data).await?.into_vec();
+        let mut res = self
+            .submit(data, sys_safe::OperationKind::CreateAccounts)
+            .await?
+            .into_vec();
         res.retain(|raw| CreateAccountsError::try_from_raw(*raw).is_some());
 
         // SAFETY: just transposing original vec into vec of transparent `Copy` newtypes
@@ -87,10 +94,45 @@ impl Client {
 
     pub async fn lookup_accounts(&self, ids: Vec<u128>) -> Result<Vec<Account>, SendError> {
         let data = Blob::from_vec(ids);
-        Ok(self.submit(data).await?.into_vec())
+        Ok(self
+            .submit(data, sys_safe::OperationKind::LookupAccounts)
+            .await?
+            .into_vec())
     }
 
-    async fn submit(&self, data: Blob) -> Result<Blob, SendError> {
+    pub async fn create_transfers(
+        &self,
+        transfers: Vec<Transfer>,
+    ) -> Result<Vec<CreateTransfersError>, SendError> {
+        let data = Blob::from_vec(transfers);
+
+        let mut res = self
+            .submit(data, sys_safe::OperationKind::CreateTransfers)
+            .await?
+            .into_vec();
+        res.retain(|raw| CreateTransfersError::try_from_raw(*raw).is_some());
+
+        // SAFETY: just transposing original vec into vec of transparent `Copy` newtypes
+        Ok(
+            unsafe {
+                transpose_vec::<sys::tb_create_transfers_result_t, CreateTransfersError>(res)
+            },
+        )
+    }
+
+    pub async fn lookup_transfers(&self, ids: Vec<u128>) -> Result<Vec<Transfer>, SendError> {
+        let data = Blob::from_vec(ids);
+        Ok(self
+            .submit(data, sys_safe::OperationKind::LookupTransfers)
+            .await?
+            .into_vec())
+    }
+
+    async fn submit(
+        &self,
+        data: Blob,
+        operation: sys_safe::OperationKind,
+    ) -> Result<Blob, SendError> {
         let data_ptr = data.as_ptr();
         let data_size = data
             .byte_size()
@@ -113,7 +155,7 @@ impl Client {
             packet_ptr.as_ptr().write(sys::tb_packet_t {
                 next: ptr::null_mut(),
                 user_data: user_data.cast(),
-                operation: sys_safe::OperationKind::CreateAccounts as _,
+                operation: operation as _,
                 status: 0,
                 data_size,
                 data: data_ptr.as_ptr().cast(),
