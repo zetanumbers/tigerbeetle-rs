@@ -6,6 +6,9 @@ license = "MIT"
 
 [dependencies]
 tigerbeetle-sys = { version = "0.1.0", path = "sys", features = ["generated-safe"] }
+futures-channel = "0.3.28"
+bytemuck = "1.13.1"
+tokio = { version = "1.28.1", features = ["sync"] }
 
 [workspace]
 members = ["sys"]
