@@ -4,7 +4,8 @@ use tigerbeetle::{Account, Client, Transfer};
 
 const MAX_MESSAGE_BYTE_SIZE: usize = (1024 * 1024) - 128;
 
-#[tokio::main(flavor = "current_thread")]
+// Crate is runtime agnostic, so you can use tokio or any other async runtime
+#[pollster::main]
 async fn main() {
     println!("TigerBeetle C Sample");
     println!("Connecting...");
