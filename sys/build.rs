@@ -11,8 +11,12 @@ use quote::quote;
 use syn::visit::Visit;
 use zip::ZipArchive;
 
-const TIGERBEETLE_ZIP_URL: &str =
-    "https://github.com/tigerbeetledb/tigerbeetle/archive/refs/tags/0.13.3.zip";
+fn tigerbeetle_zip_url() -> String {
+    format!(
+        "https://github.com/tigerbeetledb/tigerbeetle/archive/refs/tags/{}.zip",
+        std::env::var("CARGO_PKG_VERSION").unwrap()
+    )
+}
 
 fn target_to_lib_dir(target: &str) -> Option<&'static str> {
     match target {
@@ -44,7 +48,7 @@ fn main() {
     {
         // fetching data into `zip`
         let mut curl = Easy::new();
-        curl.url(TIGERBEETLE_ZIP_URL).unwrap();
+        curl.url(&tigerbeetle_zip_url()).unwrap();
         curl.follow_location(true).unwrap();
         let mut transfer = curl.transfer();
         transfer
