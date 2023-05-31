@@ -1,6 +1,6 @@
 mod account;
 mod blob;
-mod error;
+pub mod error;
 mod resource_pool;
 
 use std::{
@@ -12,6 +12,11 @@ use std::{
 };
 
 use blob::Blob;
+use error::{
+    CreateAccountsApiError, CreateAccountsError, CreateAccountsIndividualApiError,
+    CreateTransfersApiError, CreateTransfersError, CreateTransfersIndividualApiError,
+    NewClientError, NewClientErrorKind, SendError, SendErrorKind,
+};
 use resource_pool::ResourcePool;
 use tigerbeetle_sys::{self as sys, generated_safe as sys_safe};
 use tokio::sync::oneshot as async_oneshot;
@@ -19,15 +24,7 @@ use tokio::sync::oneshot as async_oneshot;
 pub use sys::tb_transfer_t as Transfer;
 pub use sys_safe::TransferFlags;
 
-pub use crate::{
-    account::{Account, AccountFlags, AccountRaw},
-    error::{
-        CreateAccountError, CreateAccountErrorKind, CreateAccountsApiError, CreateAccountsError,
-        CreateAccountsIndividualApiError, CreateTransferError, CreateTransferErrorKind,
-        CreateTransfersApiError, CreateTransfersError, CreateTransfersIndividualApiError,
-        NewClientError, NewClientErrorKind, SendError, SendErrorKind,
-    },
-};
+pub use crate::account::{Account, AccountFlags, AccountRaw};
 
 #[derive(Clone)]
 pub struct Client {
