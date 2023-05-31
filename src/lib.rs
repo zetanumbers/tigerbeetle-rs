@@ -12,9 +12,9 @@ use std::{
 };
 
 use blob::Blob;
-use futures_channel::oneshot as async_oneshot;
 use resource_pool::ResourcePool;
 use tigerbeetle_sys::{self as sys, generated_safe as sys_safe};
+use tokio::sync::oneshot as async_oneshot;
 
 pub use sys::tb_transfer_t as Transfer;
 pub use sys_safe::TransferFlags;
