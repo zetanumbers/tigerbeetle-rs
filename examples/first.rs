@@ -17,11 +17,10 @@ async fn main() {
     ////////////////////////////////////////////////////////////
 
     let accounts = [Account::new(1, 777, 2), Account::new(2, 777, 2)];
-    let errors = client
+    client
         .create_accounts(accounts.into())
         .await
         .expect("creating accounts");
-    assert!(errors.is_empty(), "failed to create accounts: {errors:?}");
     println!("Accounts created successfully");
 
     ////////////////////////////////////////////////////////////
@@ -48,11 +47,10 @@ async fn main() {
             .collect();
 
         let start = Instant::now();
-        let errors = client
+        client
             .create_transfers(transfers)
             .await
             .expect("creating transfers");
-        assert!(errors.is_empty(), "failed to create transfers: {errors:?}");
 
         let elapsed = start.elapsed();
         max_latency = max_latency.max(elapsed);

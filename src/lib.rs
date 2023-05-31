@@ -22,9 +22,10 @@ pub use sys_safe::TransferFlags;
 pub use crate::{
     account::{Account, AccountFlags, AccountRaw},
     error::{
-        CreateAccountError, CreateAccountErrorKind, CreateAccountsError, CreateTransferError,
-        CreateTransferErrorKind, CreateTransfersError, NewClientError, NewClientErrorKind,
-        SendError, SendErrorKind,
+        CreateAccountError, CreateAccountErrorKind, CreateAccountsApiError, CreateAccountsError,
+        CreateAccountsIndividualApiError, CreateTransferError, CreateTransferErrorKind,
+        CreateTransfersApiError, CreateTransfersError, CreateTransfersIndividualApiError,
+        NewClientError, NewClientErrorKind, SendError, SendErrorKind,
     },
 };
 
@@ -76,20 +77,24 @@ impl Client {
             .map_err(|shared| Client { shared })
     }
 
-    pub async fn create_accounts(
-        &self,
-        accounts: Vec<Account>,
-    ) -> Result<Vec<CreateAccountsError>, SendError> {
+    pub async fn create_accounts(&self, accounts: Vec<Account>) -> Result<(), CreateAccountsError> {
         let data = Blob::from_vec(accounts);
 
         let mut res = self
             .submit(data, sys_safe::OperationKind::CreateAccounts)
             .await?
             .into_vec();
-        res.retain(|raw| CreateAccountsError::try_from_raw(*raw).is_some());
+        res.retain(|raw| CreateAccountsIndividualApiError::try_from_raw(*raw).is_some());
 
         // SAFETY: just transposing original vec into vec of transparent `Copy` newtypes
-        Ok(unsafe { transpose_vec::<sys::tb_create_accounts_result_t, CreateAccountsError>(res) })
+        let vec = unsafe {
+            transpose_vec::<sys::tb_create_accounts_result_t, CreateAccountsIndividualApiError>(res)
+        };
+        if let Some(e) = CreateAccountsApiError::from_vec(vec) {
+            Err(CreateAccountsError::Api(e))
+        } else {
+            Ok(())
+        }
     }
 
     pub async fn lookup_accounts(&self, ids: Vec<u128>) -> Result<Vec<Account>, SendError> {
@@ -103,21 +108,27 @@ impl Client {
     pub async fn create_transfers(
         &self,
         transfers: Vec<Transfer>,
-    ) -> Result<Vec<CreateTransfersError>, SendError> {
+    ) -> Result<(), CreateTransfersError> {
         let data = Blob::from_vec(transfers);
 
         let mut res = self
             .submit(data, sys_safe::OperationKind::CreateTransfers)
             .await?
             .into_vec();
-        res.retain(|raw| CreateTransfersError::try_from_raw(*raw).is_some());
+        res.retain(|raw| CreateTransfersIndividualApiError::try_from_raw(*raw).is_some());
 
         // SAFETY: just transposing original vec into vec of transparent `Copy` newtypes
-        Ok(
-            unsafe {
-                transpose_vec::<sys::tb_create_transfers_result_t, CreateTransfersError>(res)
-            },
-        )
+
+        let vec = unsafe {
+            transpose_vec::<sys::tb_create_transfers_result_t, CreateTransfersIndividualApiError>(
+                res,
+            )
+        };
+        if let Some(e) = CreateTransfersApiError::from_vec(vec) {
+            Err(CreateTransfersError::Api(e))
+        } else {
+            Ok(())
+        }
     }
 
     pub async fn lookup_transfers(&self, ids: Vec<u128>) -> Result<Vec<Transfer>, SendError> {
