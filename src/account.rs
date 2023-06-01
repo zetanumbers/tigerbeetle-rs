@@ -4,12 +4,12 @@ use crate::{sys, sys_safe};
 
 use bytemuck::{Pod, TransparentWrapper, Zeroable};
 
-pub use sys::tb_account_t as AccountRaw;
-pub use sys_safe::AccountFlags;
+pub use sys::tb_account_t as Raw;
+pub use sys_safe::AccountFlags as Flags;
 
 #[repr(transparent)]
 #[derive(Clone, Copy, TransparentWrapper, Pod, Zeroable)]
-pub struct Account(AccountRaw);
+pub struct Account(Raw);
 
 impl Account {
     #[track_caller]
@@ -23,7 +23,7 @@ impl Account {
         assert_ne!(ledger, 0, "account ledger must not be zero");
         assert_ne!(code, 0, "account code must not be zero");
 
-        Account(AccountRaw {
+        Account(Raw {
             id,
             ledger,
             code,
@@ -38,16 +38,16 @@ impl Account {
         })
     }
 
-    pub const fn from_raw(raw: AccountRaw) -> Self {
+    pub const fn from_raw(raw: Raw) -> Self {
         Account(raw)
     }
-    pub const fn into_raw(self) -> AccountRaw {
+    pub const fn into_raw(self) -> Raw {
         self.0
     }
-    pub const fn as_raw(&self) -> &AccountRaw {
+    pub const fn as_raw(&self) -> &Raw {
         &self.0
     }
-    pub fn as_raw_mut(&mut self) -> &mut AccountRaw {
+    pub fn as_raw_mut(&mut self) -> &mut Raw {
         &mut self.0
     }
 
@@ -66,13 +66,7 @@ impl Account {
     }
     #[track_caller]
     pub fn with_id(mut self, id: u128) -> Self {
-        assert_ne!(id, 0, "account id must not be zero");
-        assert_ne!(
-            id,
-            u128::MAX,
-            "account id must not be `2^128 - 1` (the highest 128-bit unsigned integer)"
-        );
-        self.0.id = id;
+        self.set_id(id);
         self
     }
 
@@ -97,8 +91,7 @@ impl Account {
     }
     #[track_caller]
     pub fn with_ledger(mut self, ledger: u32) -> Self {
-        assert_ne!(ledger, 0, "account ledger must not be zero");
-        self.0.ledger = ledger;
+        self.set_ledger(ledger);
         self
     }
 
@@ -112,18 +105,17 @@ impl Account {
     }
     #[track_caller]
     pub fn with_code(mut self, code: u16) -> Self {
-        assert_ne!(code, 0, "account code must not be zero");
-        self.0.code = code;
+        self.set_code(code);
         self
     }
 
-    pub const fn flags(&self) -> AccountFlags {
-        AccountFlags::from_bits_retain(self.0.flags)
+    pub const fn flags(&self) -> Flags {
+        Flags::from_bits_retain(self.0.flags)
     }
-    pub fn set_flags(&mut self, flags: AccountFlags) {
+    pub fn set_flags(&mut self, flags: Flags) {
         self.0.flags = flags.bits();
     }
-    pub const fn with_flags(mut self, flags: AccountFlags) -> Self {
+    pub const fn with_flags(mut self, flags: Flags) -> Self {
         self.0.flags = flags.bits();
         self
     }
@@ -146,12 +138,12 @@ impl Account {
     }
 }
 
-impl From<AccountRaw> for Account {
-    fn from(value: AccountRaw) -> Self {
+impl From<Raw> for Account {
+    fn from(value: Raw) -> Self {
         Account(value)
     }
 }
-impl From<Account> for AccountRaw {
+impl From<Account> for Raw {
     fn from(value: Account) -> Self {
         value.0
     }

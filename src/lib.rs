@@ -1,7 +1,8 @@
-mod account;
+pub mod account;
 mod blob;
 pub mod error;
 mod resource_pool;
+pub mod transfer;
 
 use std::{
     mem,
@@ -21,10 +22,7 @@ use resource_pool::ResourcePool;
 use tigerbeetle_sys::{self as sys, generated_safe as sys_safe};
 use tokio::sync::oneshot as async_oneshot;
 
-pub use sys::tb_transfer_t as Transfer;
-pub use sys_safe::TransferFlags;
-
-pub use crate::account::{Account, AccountFlags, AccountRaw};
+pub use crate::{account::Account, transfer::Transfer};
 
 #[derive(Clone)]
 pub struct Client {

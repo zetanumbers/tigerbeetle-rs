@@ -35,14 +35,13 @@ async fn main() {
 
     for i in 0..MAX_BATCHES {
         let transfers = (0..TRANSFERS_PER_BATCH)
-            .map(|j| Transfer {
-                id: (j + 1 + i * TRANSFERS_PER_BATCH).try_into().unwrap(),
-                debit_account_id: accounts[0].id(),
-                credit_account_id: accounts[1].id(),
-                code: 2,
-                ledger: 777,
-                amount: 1,
-                ..bytemuck::Zeroable::zeroed()
+            .map(|j| {
+                Transfer::new((j + 1 + i * TRANSFERS_PER_BATCH).try_into().unwrap())
+                    .with_debit_account_id(accounts[0].id())
+                    .with_credit_account_id(accounts[1].id())
+                    .with_code(2)
+                    .with_ledger(777)
+                    .with_amount(1)
             })
             .collect();
 
