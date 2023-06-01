@@ -1,6 +1,6 @@
 [package]
 name = "tigerbeetle-sys"
-version = "0.13.3"
+version = "0.13.13"
 edition = "2021"
 license = "MIT"
 

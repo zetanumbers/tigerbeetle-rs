@@ -246,6 +246,11 @@ impl Visit<'_> for TigerbeetleVisitor {
                         repr_type = "u8";
                         errorize = true;
                     }
+                    "PacketAcquireStatus" => {
+                        new_enum_name = "PacketAcquireStatusErrorKind".to_string();
+                        new_enum_ident = syn::Ident::new(&new_enum_name, new_enum_ident.span());
+                        errorize = true;
+                    }
                     "Operation" => {
                         new_enum_name = "OperationKind".to_string();
                         new_enum_ident = syn::Ident::new(&new_enum_name, new_enum_ident.span());

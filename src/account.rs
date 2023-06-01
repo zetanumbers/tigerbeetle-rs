@@ -14,28 +14,10 @@ pub struct Account(Raw);
 impl Account {
     #[track_caller]
     pub fn new(id: u128, ledger: u32, code: u16) -> Self {
-        assert_ne!(id, 0, "account id must not be zero");
-        assert_ne!(
-            id,
-            u128::MAX,
-            "account id must not be `2^128 - 1` (the highest 128-bit unsigned integer)"
-        );
-        assert_ne!(ledger, 0, "account ledger must not be zero");
-        assert_ne!(code, 0, "account code must not be zero");
-
-        Account(Raw {
-            id,
-            ledger,
-            code,
-            user_data: 0,
-            reserved: Zeroable::zeroed(),
-            flags: 0,
-            debits_pending: 0,
-            debits_posted: 0,
-            credits_pending: 0,
-            credits_posted: 0,
-            timestamp: 0,
-        })
+        Account(Raw::zeroed())
+            .with_id(id)
+            .with_ledger(ledger)
+            .with_code(code)
     }
 
     pub const fn from_raw(raw: Raw) -> Self {

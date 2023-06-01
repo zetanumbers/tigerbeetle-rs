@@ -1,7 +1,7 @@
 pub mod account;
 mod blob;
 pub mod error;
-mod resource_pool;
+mod packet_guard;
 pub mod transfer;
 
 use std::{
@@ -18,9 +18,9 @@ use error::{
     CreateTransfersApiError, CreateTransfersError, CreateTransfersIndividualApiError,
     NewClientError, NewClientErrorKind, SendError, SendErrorKind,
 };
-use resource_pool::ResourcePool;
+use packet_guard::PacketGuard;
 use tigerbeetle_sys::{self as sys, generated_safe as sys_safe};
-use tokio::sync::oneshot as async_oneshot;
+use tokio::sync::{oneshot as async_oneshot, Semaphore as AsyncSemaphore};
 
 pub use crate::{account::Account, transfer::Transfer};
 
@@ -33,24 +33,24 @@ impl Client {
     pub fn new(
         cluster_id: u32,
         address: &str,
-        concurrent_packets: u32,
+        concurrency_max: u32,
     ) -> Result<Self, NewClientError> {
         unsafe {
-            let packet_count = concurrent_packets
+            let permits = concurrency_max
                 .try_into()
-                .map_err(|_| NewClientErrorKind::PacketsCountInvalid)?;
+                .map_err(|_| NewClientErrorKind::ConcurrencyMaxInvalid)?;
+            let pool = AsyncSemaphore::new(permits);
+
             let mut raw = mem::zeroed();
-            let mut pool = mem::zeroed();
             let status = sys::tb_client_init(
                 &mut raw,
-                &mut pool,
                 cluster_id,
                 address.as_ptr().cast(),
                 address
                     .len()
                     .try_into()
                     .map_err(|_| NewClientErrorKind::AddressInvalid)?,
-                concurrent_packets,
+                concurrency_max,
                 0,
                 Some(on_completion),
             );
@@ -58,10 +58,7 @@ impl Client {
                 return Err(NewClientError(c));
             }
             Ok(Self {
-                shared: Arc::new(ClientUnique {
-                    raw,
-                    pool: ResourcePool::new(pool, packet_count),
-                }),
+                shared: Arc::new(ClientUnique { raw, pool }),
             })
         }
     }
@@ -145,15 +142,14 @@ impl Client {
             .try_into()
             .map_err(|_| SendErrorKind::TooMuchData)?;
 
-        let packet = self.shared.pool.acquire_packet().await;
-        let packet_ptr = packet.packet();
+        let packet_guard = PacketGuard::acquire(self.clone()).await;
+        let packet_ptr = packet_guard.packet();
         let (reply_sender, reply_receiver) = async_oneshot::channel();
         let user_data = Box::into_raw(Box::new(PacketUserData {
             _data: data,
             reply_sender,
-            _client: self.clone(),
             // SAFETY: owning a client handle to prevent resource pool from droping
-            _packet_guard: unsafe { mem::transmute(packet) },
+            _packet_guard: packet_guard,
         }));
 
         // SAFETY: packet_ptr is valid, tb_packet_t is not covariant on anything
@@ -168,12 +164,7 @@ impl Client {
             })
         };
 
-        let mut packet_list = sys::tb_packet_list_t {
-            head: packet_ptr.as_ptr(),
-            tail: packet_ptr.as_ptr(),
-        };
-
-        unsafe { sys::tb_client_submit(self.shared.raw, &mut packet_list) };
+        unsafe { sys::tb_client_submit(self.shared.raw, packet_ptr.as_ptr()) };
 
         reply_receiver
             .await
@@ -183,7 +174,7 @@ impl Client {
 
 struct ClientUnique {
     raw: sys::tb_client_t,
-    pool: ResourcePool,
+    pool: AsyncSemaphore,
 }
 
 unsafe impl Send for ClientUnique {}
@@ -200,9 +191,8 @@ impl Drop for ClientUnique {
 struct PacketUserData {
     reply_sender: async_oneshot::Sender<Result<Blob, SendError>>,
     // lifetime is extended by owning a client handle
-    _packet_guard: resource_pool::PacketGuard<'static>,
+    _packet_guard: PacketGuard,
     _data: Blob,
-    _client: Client,
 }
 
 unsafe extern "C" fn on_completion(
