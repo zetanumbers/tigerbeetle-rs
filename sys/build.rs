@@ -13,7 +13,7 @@ use syn::visit::Visit;
 use zip::ZipArchive;
 
 fn tigerbeetle_zip_url() -> impl AsRef<str> {
-    "https://github.com/tigerbeetledb/tigerbeetle/archive/refs/tags/0.13.71.zip"
+    "https://github.com/ZetaNumbers/tigerbeetle/archive/refs/heads/lock_credit.zip"
 }
 
 fn target_to_lib_dir(target: &str) -> Option<&'static str> {

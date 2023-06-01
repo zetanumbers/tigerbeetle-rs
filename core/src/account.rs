@@ -5,7 +5,7 @@ use crate::sys_safe;
 use bytemuck::{Pod, TransparentWrapper, Zeroable};
 
 pub use sys::tb_account_t as Raw;
-pub use sys_safe::AccountFlags as Flags;
+pub use sys_safe::{AccountFlags as Flags, AccountMutableFlags as MutableFlags};
 
 #[repr(transparent)]
 #[derive(Clone, Copy, TransparentWrapper, Pod, Zeroable)]
@@ -99,6 +99,17 @@ impl Account {
     }
     pub const fn with_flags(mut self, flags: Flags) -> Self {
         self.0.flags = flags.bits();
+        self
+    }
+
+    pub const fn mutable_flags(&self) -> MutableFlags {
+        MutableFlags::from_bits_retain(self.0.mutable_flags)
+    }
+    pub fn set_mutable_flags(&mut self, mutable_flags: MutableFlags) {
+        self.0.mutable_flags = mutable_flags.bits();
+    }
+    pub const fn with_mutable_flags(mut self, mutable_flags: MutableFlags) -> Self {
+        self.0.mutable_flags = mutable_flags.bits();
         self
     }
 
