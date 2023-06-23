@@ -136,35 +136,39 @@ impl Client {
         data: Blob,
         operation: sys_safe::OperationKind,
     ) -> Result<Blob, SendError> {
-        let data_ptr = data.as_ptr();
-        let data_size = data
-            .byte_size()
-            .try_into()
-            .map_err(|_| SendErrorKind::TooMuchData)?;
+        let reply_receiver;
+        {
+            let data_size = data
+                .byte_size()
+                .try_into()
+                .map_err(|_| SendErrorKind::TooMuchData)?;
 
-        let packet_guard = PacketGuard::acquire(self.clone()).await;
-        let packet_ptr = packet_guard.packet();
-        let (reply_sender, reply_receiver) = async_oneshot::channel();
-        let user_data = Box::into_raw(Box::new(PacketUserData {
-            _data: data,
-            reply_sender,
-            // SAFETY: owning a client handle to prevent resource pool from droping
-            _packet_guard: packet_guard,
-        }));
+            let packet_guard = PacketGuard::acquire(self.clone()).await;
+            let data_ptr = data.as_ptr();
+            let packet_ptr = packet_guard.packet();
+            let reply_sender;
+            (reply_sender, reply_receiver) = async_oneshot::channel();
+            let user_data = Box::into_raw(Box::new(PacketUserData {
+                _data: data,
+                reply_sender,
+                // SAFETY: owning a client handle to prevent resource pool from droping
+                _packet_guard: packet_guard,
+            }));
 
-        // SAFETY: packet_ptr is valid, tb_packet_t is not covariant on anything
-        unsafe {
-            packet_ptr.as_ptr().write(sys::tb_packet_t {
-                next: ptr::null_mut(),
-                user_data: user_data.cast(),
-                operation: operation as _,
-                status: 0,
-                data_size,
-                data: data_ptr.as_ptr().cast(),
-            })
-        };
+            // SAFETY: packet_ptr is valid, tb_packet_t is not covariant on anything
+            unsafe {
+                packet_ptr.as_ptr().write(sys::tb_packet_t {
+                    next: ptr::null_mut(),
+                    user_data: user_data.cast(),
+                    operation: operation as _,
+                    status: 0,
+                    data_size,
+                    data: data_ptr.as_ptr().cast(),
+                })
+            };
 
-        unsafe { sys::tb_client_submit(self.shared.raw, packet_ptr.as_ptr()) };
+            unsafe { sys::tb_client_submit(self.shared.raw, packet_ptr.as_ptr()) };
+        }
 
         reply_receiver
             .await
@@ -222,4 +226,35 @@ unsafe fn transpose_vec<T, U>(mut v: Vec<T>) -> Vec<U> {
     let ptr = v.as_mut_ptr();
     mem::forget(v);
     Vec::from_raw_parts(ptr.cast::<U>(), length, capacity)
+}
+
+fn _test_thread_safe(
+    client: &Client,
+    accounts: Vec<Account>,
+    transfers: Vec<Transfer>,
+    ids: Vec<u128>,
+) {
+    check_thread_safe({
+        let client = client.clone();
+        async move { client.create_accounts(accounts).await }
+    });
+    check_thread_safe({
+        let client = client.clone();
+        let ids = ids.clone();
+        async move { client.lookup_accounts(ids).await }
+    });
+    check_thread_safe({
+        let client = client.clone();
+        async move { client.create_transfers(transfers).await }
+    });
+    check_thread_safe({
+        let client = client.clone();
+        async move { client.lookup_transfers(ids).await }
+    });
+
+    fn check_thread_safe<T>(_: T)
+    where
+        T: Send + Sync + 'static,
+    {
+    }
 }

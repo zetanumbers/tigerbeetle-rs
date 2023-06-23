@@ -11,6 +11,9 @@ pub struct Blob {
     item_layout: alloc::Layout,
 }
 
+unsafe impl Send for Blob {}
+unsafe impl Sync for Blob {}
+
 impl Blob {
     #[track_caller]
     pub fn copy_from_reply(bytes: &[u8], operation: u8) -> Blob {
