@@ -229,27 +229,16 @@ unsafe fn transpose_vec<T, U>(mut v: Vec<T>) -> Vec<U> {
 }
 
 fn _test_thread_safe(
-    client: &Client,
+    client: Client,
     accounts: Vec<Account>,
     transfers: Vec<Transfer>,
     ids: Vec<u128>,
 ) {
-    check_thread_safe({
-        let client = client.clone();
-        async move { client.create_accounts(accounts).await }
-    });
-    check_thread_safe({
-        let client = client.clone();
-        let ids = ids.clone();
-        async move { client.lookup_accounts(ids).await }
-    });
-    check_thread_safe({
-        let client = client.clone();
-        async move { client.create_transfers(transfers).await }
-    });
-    check_thread_safe({
-        let client = client.clone();
-        async move { client.lookup_transfers(ids).await }
+    check_thread_safe(async move {
+        client.create_accounts(accounts).await.unwrap();
+        client.lookup_accounts(ids.clone()).await.unwrap();
+        client.create_transfers(transfers).await.unwrap();
+        client.lookup_transfers(ids).await.unwrap();
     });
 
     fn check_thread_safe<T>(_: T)
