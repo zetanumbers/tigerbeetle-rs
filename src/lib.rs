@@ -70,6 +70,9 @@ impl Client {
     }
 
     pub async fn create_accounts(&self, accounts: Vec<Account>) -> Result<(), CreateAccountsError> {
+        if accounts.is_empty() {
+            return Ok(());
+        }
         let data = Blob::from_vec(accounts);
 
         let mut res = self
@@ -90,6 +93,9 @@ impl Client {
     }
 
     pub async fn lookup_accounts(&self, ids: Vec<u128>) -> Result<Vec<Account>, SendError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
         let data = Blob::from_vec(ids);
         Ok(self
             .submit(data, sys_safe::OperationKind::LookupAccounts)
@@ -101,6 +107,9 @@ impl Client {
         &self,
         transfers: Vec<Transfer>,
     ) -> Result<(), CreateTransfersError> {
+        if transfers.is_empty() {
+            return Ok(());
+        }
         let data = Blob::from_vec(transfers);
 
         let mut res = self
@@ -124,6 +133,9 @@ impl Client {
     }
 
     pub async fn lookup_transfers(&self, ids: Vec<u128>) -> Result<Vec<Transfer>, SendError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
         let data = Blob::from_vec(ids);
         Ok(self
             .submit(data, sys_safe::OperationKind::LookupTransfers)
