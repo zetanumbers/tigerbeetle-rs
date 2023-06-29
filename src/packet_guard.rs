@@ -7,6 +7,7 @@ use crate::{sys, Client};
 pub struct PacketGuard {
     packet: ptr::NonNull<sys::tb_packet_t>,
     _permit: AsyncSemaphorePermit<'static>,
+    // drop this only after `_permit` is droped
     client: Client,
 }
 
@@ -33,4 +34,10 @@ impl Drop for PacketGuard {
     fn drop(&mut self) {
         unsafe { sys::tb_client_release_packet(self.client.shared.raw, self.packet.as_ptr()) }
     }
+}
+
+fn _test_thread_safety(packet: &mut PacketGuard) {
+    check_thread_safety(&mut packet._permit);
+    check_thread_safety(&mut packet.client);
+    fn check_thread_safety<T: Send + Sync>(_: T) {}
 }
