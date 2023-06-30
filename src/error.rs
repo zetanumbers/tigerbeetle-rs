@@ -287,12 +287,13 @@ impl std::error::Error for CreateAccountsError {
 
 impl std::fmt::Display for CreateAccountsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        match self {
             CreateAccountsError::Send(_) => {
                 "error occured while sending packets for accounts' creation"
             }
             CreateAccountsError::Api(_) => "api errors occured at accounts' creation",
-        })
+        }
+        .fmt(f)
     }
 }
 
@@ -444,12 +445,13 @@ impl std::error::Error for CreateTransfersError {
 
 impl std::fmt::Display for CreateTransfersError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        match self {
             CreateTransfersError::Send(_) => {
                 "error occured while sending packets for transfers' creation"
             }
             CreateTransfersError::Api(_) => "api errors occured at transfers' creation",
-        })
+        }
+        .fmt(f)
     }
 }
 
