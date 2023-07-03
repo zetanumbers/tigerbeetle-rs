@@ -8,6 +8,7 @@ license = "MIT"
 tigerbeetle-sys = { version = "0.13.36", path = "sys", features = ["generated-safe"] }
 bytemuck = "1.13.1"
 tokio = { version = "1.28.1", features = ["sync"] }
+sptr = "0.3.2"
 
 [dev-dependencies]
 pollster = { version = "0.3.0", features = ["macro"] }
