@@ -4,6 +4,9 @@ version = "0.13.36"
 edition = "2021"
 license = "MIT"
 
+[features]
+tokio-rt-multi-thread = ["tokio/rt-multi-thread"]
+
 [dependencies]
 tigerbeetle-sys = { version = "0.13.36", path = "sys", features = ["generated-safe"] }
 bytemuck = "1.13.1"

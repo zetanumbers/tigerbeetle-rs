@@ -187,7 +187,18 @@ where
 {
     fn drop(&mut self) {
         unsafe {
-            // waits for all callback calls
+            #[cfg(feature = "tokio-rt-multi-thread")]
+            if tokio::runtime::Handle::try_current().is_ok_and(|h| {
+                matches!(
+                    h.runtime_flavor(),
+                    tokio::runtime::RuntimeFlavor::MultiThread
+                )
+            }) {
+                tokio::task::block_in_place(|| sys::tb_client_deinit(self.raw));
+            } else {
+                sys::tb_client_deinit(self.raw)
+            }
+            #[cfg(not(feature = "tokio-rt-multi-thread"))]
             sys::tb_client_deinit(self.raw);
             F::from_raw_const_ptr(self.on_completion);
         }
