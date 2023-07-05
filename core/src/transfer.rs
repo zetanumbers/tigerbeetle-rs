@@ -155,6 +155,24 @@ impl Transfer {
     }
 }
 
+impl std::fmt::Debug for Transfer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Transfer")
+            .field("id", &self.id())
+            .field("debit_account_id", &self.debit_account_id())
+            .field("credit_account_id", &self.credit_account_id())
+            .field("user_data", &self.user_data())
+            .field("ledger", &self.ledger())
+            .field("code", &self.code())
+            .field("pending_id", &self.pending_id())
+            .field("flags", &self.flags())
+            .field("timeout", &self.timeout())
+            .field("amount", &self.amount())
+            .field("timestamp", &self.timestamp())
+            .finish_non_exhaustive()
+    }
+}
+
 impl From<Raw> for Transfer {
     fn from(value: Raw) -> Self {
         Transfer(value)

@@ -1,7 +1,10 @@
+use std::mem;
 use std::num::{NonZeroU32, NonZeroU8};
 
 use crate::{sys, sys_safe};
 
+pub use sys::tb_create_accounts_result_t as RawCreateAccountsIndividualApiResult;
+pub use sys::tb_create_transfers_result_t as RawCreateTransfersIndividualApiResult;
 pub use sys_safe::{
     CreateAccountErrorKind, CreateTransferErrorKind,
     PacketAcquireStatusErrorKind as AcquirePacketErrorKind, PacketStatusErrorKind as SendErrorKind,
@@ -20,13 +23,15 @@ pub struct SendError(pub(crate) NonZeroU8);
 #[derive(Clone, Copy)]
 pub struct CreateAccountError(pub(crate) NonZeroU32);
 
-// INVARIANT: self.0.result must not be zero
+/// Type indicating individual api error for account creation.
+///
+/// Safe to `transpose` from [`RawCreateAccountsIndividualApiResult`]
+/// if [`Self::from_raw_result_unchecked`] would also be safe.
 //
-// Should be safe to transpose from `tb_create_accounts_result_t`
-// if `CreateAccountsError::try_from_raw` wouldn't return `None`.
+// INVARIANT: self.0.result must not be zero
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct CreateAccountsIndividualApiError(sys::tb_create_accounts_result_t);
+pub struct CreateAccountsIndividualApiError(RawCreateAccountsIndividualApiResult);
 
 // INVARIANT: self.0 must not be empty
 #[derive(Debug)]
@@ -42,13 +47,15 @@ pub enum CreateAccountsError {
 #[derive(Clone, Copy)]
 pub struct CreateTransferError(pub(crate) NonZeroU32);
 
-// INVARIANT: self.0.result must not be zero
+/// Type indicating individual api error for account creation.
+///
+/// Safe to `transpose` from [`RawCreateTransfersIndividualApiResult`]
+/// if [`Self::from_raw_result_unchecked`] would also be safe.
 //
-// Should be safe to transpose from `tb_create_transfers_result_t`
-// if `CreateTransfersError::try_from_raw` wouldn't return `None`.
+// INVARIANT: self.0.result must not be zero
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct CreateTransfersIndividualApiError(sys::tb_create_transfers_result_t);
+pub struct CreateTransfersIndividualApiError(RawCreateTransfersIndividualApiResult);
 
 // INVARIANT: self.0 must not be empty
 #[derive(Debug)]
@@ -266,20 +273,69 @@ impl From<CreateAccountErrorKind> for CreateAccountError {
 }
 
 impl CreateAccountsIndividualApiError {
-    /// Fails (returns `None`) when `raw.result` is zero.
-    pub(crate) fn try_from_raw(raw: sys::tb_create_accounts_result_t) -> Option<Self> {
+    /// Create error from raw result.
+    ///
+    /// # Errors
+    ///
+    /// Returns `None` if `raw.result` is zero.
+    pub fn from_raw_result(raw: RawCreateAccountsIndividualApiResult) -> Option<Self> {
         (raw.result != 0).then_some(CreateAccountsIndividualApiError(raw))
     }
 
+    /// Create error from raw result. Unchecked version of [`Self::from_raw_result`].
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe. `raw.result` must not be zero.
+    pub unsafe fn from_raw_result_unchecked(raw: RawCreateAccountsIndividualApiResult) -> Self {
+        CreateAccountsIndividualApiError(raw)
+    }
+
+    /// Create vec of errors from vec of raw results.
+    ///
+    /// Retains only elements `r` of vec `v` that satisfy `r.result != 0`.
+    pub fn vec_from_raw_results(mut v: Vec<RawCreateAccountsIndividualApiResult>) -> Vec<Self> {
+        v.retain(|r| r.result != 0);
+        unsafe { Self::vec_from_raw_results_unchecked(v) }
+    }
+
+    /// Create vec of errors from vec of raw results. Unchecked version of
+    /// [`Self::vec_from_raw_results`]
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe. Every element `r` of vec `v` must satisfy
+    /// `r.result != 0`.
+    pub unsafe fn vec_from_raw_results_unchecked(
+        v: Vec<RawCreateAccountsIndividualApiResult>,
+    ) -> Vec<Self> {
+        let mut v = mem::ManuallyDrop::new(v);
+        let len = v.len();
+        let cap = v.capacity();
+        let ptr = v.as_mut_ptr().cast::<CreateAccountsIndividualApiError>();
+        // SAFETY: this is fine because `Vec::from_raw_parts` has pretty loose
+        // safety requirements, and since `CreateAccountsIndividualApiError` is
+        // just a transparent wrapper of `RawCreateAccountsIndividualApiResult`
+        // this is safe.
+        Vec::from_raw_parts(ptr, len, cap)
+    }
+
+    /// Get index of the failed account.
     pub fn index(&self) -> u32 {
         self.0.index
     }
 
+    /// Get error stripped of context, like index.
     pub fn inner(&self) -> CreateAccountError {
         CreateAccountError(
             // SAFETY: type invariant
             unsafe { NonZeroU32::new_unchecked(self.0.result) },
         )
+    }
+
+    /// Get kind of error to match upon.
+    pub fn kind(&self) -> CreateAccountErrorKind {
+        self.inner().kind()
     }
 }
 
@@ -306,12 +362,25 @@ impl std::fmt::Display for CreateAccountsIndividualApiError {
 impl std::error::Error for CreateAccountsIndividualApiError {}
 
 impl CreateAccountsApiError {
+    /// Get a slice of individual errors. Never empty.
     pub fn as_slice(&self) -> &[CreateAccountsIndividualApiError] {
         &self.0
     }
 
-    pub fn from_vec(v: Vec<CreateAccountsIndividualApiError>) -> Option<Self> {
+    /// Create error from vec of raw results.
+    ///
+    /// # Errors
+    ///
+    /// Returns `None` if `v.is_empty()`.
+    pub fn from_errors(v: Vec<CreateAccountsIndividualApiError>) -> Option<Self> {
         (!v.is_empty()).then_some(CreateAccountsApiError(v))
+    }
+
+    /// Create error from vec of raw results.
+    ///
+    /// Retains only results with errors.
+    pub fn from_raw_results(v: Vec<RawCreateAccountsIndividualApiResult>) -> Option<Self> {
+        Self::from_errors(CreateAccountsIndividualApiError::vec_from_raw_results(v))
     }
 }
 
@@ -428,20 +497,69 @@ impl From<CreateTransferErrorKind> for CreateTransferError {
 }
 
 impl CreateTransfersIndividualApiError {
-    /// Fails (returns `None`) when `raw.result` is zero.
-    pub(crate) fn try_from_raw(raw: sys::tb_create_transfers_result_t) -> Option<Self> {
+    /// Create error from raw struct.
+    ///
+    /// # Errors
+    ///
+    /// Returns `None` if `raw.result` is zero.
+    pub fn from_raw_result(raw: RawCreateTransfersIndividualApiResult) -> Option<Self> {
         (raw.result != 0).then_some(CreateTransfersIndividualApiError(raw))
     }
 
+    /// Create error from raw struct. Unchecked version of [`Self::from_raw_result`].
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe. `raw.result` must not be zero.
+    pub unsafe fn from_raw_result_unchecked(raw: RawCreateTransfersIndividualApiResult) -> Self {
+        CreateTransfersIndividualApiError(raw)
+    }
+
+    /// Create vec of errors from vec of raw results.
+    ///
+    /// Retains only elements `r` of vec `v` that satisfy `r.result != 0`.
+    pub fn vec_from_raw_results(mut v: Vec<RawCreateTransfersIndividualApiResult>) -> Vec<Self> {
+        v.retain(|r| r.result != 0);
+        unsafe { Self::vec_from_raw_results_unchecked(v) }
+    }
+
+    /// Create vec of errors from vec of raw results. Unchecked version of
+    /// [`Self::vec_from_raw_results`]
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe. Every element `r` of vec `v` must satisfy
+    /// `r.result != 0`.
+    pub unsafe fn vec_from_raw_results_unchecked(
+        v: Vec<RawCreateTransfersIndividualApiResult>,
+    ) -> Vec<Self> {
+        let mut v = mem::ManuallyDrop::new(v);
+        let len = v.len();
+        let cap = v.capacity();
+        let ptr = v.as_mut_ptr().cast::<CreateTransfersIndividualApiError>();
+        // SAFETY: this is fine because `Vec::from_raw_parts` has pretty loose
+        // safety requirements, and since `CreateTransfersIndividualApiError` is
+        // just a transparent wrapper of `RawCreateTransfersIndividualApiResult`
+        // this is safe.
+        Vec::from_raw_parts(ptr, len, cap)
+    }
+
+    /// Get index of the failed transfer.
     pub fn index(&self) -> u32 {
         self.0.index
     }
 
+    /// Get error stripped of context, like index.
     pub fn inner(&self) -> CreateTransferError {
         CreateTransferError(
             // SAFETY: type invariant
             unsafe { NonZeroU32::new_unchecked(self.0.result) },
         )
+    }
+
+    /// Get kind of error to match upon.
+    pub fn kind(&self) -> CreateTransferErrorKind {
+        self.inner().kind()
     }
 }
 
@@ -468,12 +586,25 @@ impl std::fmt::Display for CreateTransfersIndividualApiError {
 impl std::error::Error for CreateTransfersIndividualApiError {}
 
 impl CreateTransfersApiError {
+    /// Get a slice of individual errors. Never empty.
     pub fn as_slice(&self) -> &[CreateTransfersIndividualApiError] {
         &self.0
     }
 
-    pub(crate) fn from_vec(v: Vec<CreateTransfersIndividualApiError>) -> Option<Self> {
+    /// Create error from vec of raw results.
+    ///
+    /// # Errors
+    ///
+    /// Returns `None` if `v.is_empty()`.
+    pub fn from_errors(v: Vec<CreateTransfersIndividualApiError>) -> Option<Self> {
         (!v.is_empty()).then_some(CreateTransfersApiError(v))
+    }
+
+    /// Create error from vec of raw results.
+    ///
+    /// Retains only results with errors.
+    pub fn from_raw_results(v: Vec<RawCreateTransfersIndividualApiResult>) -> Option<Self> {
+        Self::from_errors(CreateTransfersIndividualApiError::vec_from_raw_results(v))
     }
 }
 

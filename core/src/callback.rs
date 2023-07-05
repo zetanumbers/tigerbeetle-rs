@@ -4,43 +4,43 @@ use crate::{sys, util::RawConstPtr};
 
 use super::Packet;
 
-pub trait OnCompletionPtr: RawConstPtr<Target = Self::Pointee> + on_completion_ptr::Sealed {
-    type Pointee: OnCompletion<UserDataPtr = Self::UserDataPtr> + Sized;
+pub trait CallbacksPtr: RawConstPtr<Target = Self::Pointee> + callbacks_ptr::Sealed {
+    type Pointee: Callbacks<UserDataPtr = Self::UserDataPtr> + Sized;
     type UserDataPtr: UserDataPtr<Pointee = Self::UserData>;
     type UserData: UserData;
 }
 
-impl<T> OnCompletionPtr for T
+impl<T> CallbacksPtr for T
 where
     T: RawConstPtr,
-    T::Target: OnCompletion + Sized,
+    T::Target: Callbacks + Sized,
 {
     type Pointee = T::Target;
-    type UserDataPtr = <Self::Pointee as OnCompletion>::UserDataPtr;
+    type UserDataPtr = <Self::Pointee as Callbacks>::UserDataPtr;
     type UserData = <Self::UserDataPtr as UserDataPtr>::Pointee;
 }
 
-mod on_completion_ptr {
-    use super::{OnCompletion, RawConstPtr};
+mod callbacks_ptr {
+    use super::{Callbacks, RawConstPtr};
 
     pub trait Sealed {}
 
     impl<T> Sealed for T
     where
         T: RawConstPtr,
-        T::Target: OnCompletion + Sized,
+        T::Target: Callbacks + Sized,
     {
     }
 }
 
 // `Self: Sync` because `F` is called from some zig thread.
-pub trait OnCompletion: Sync {
+pub trait Callbacks: Sync {
     type UserDataPtr: UserDataPtr;
 
-    fn call(&self, packet: Packet<'_, Self::UserDataPtr>, payload: &[u8]);
+    fn on_completion(&self, packet: Packet<'_, Self::UserDataPtr>, payload: &[u8]);
 }
 
-pub struct OnCompletionFn<F, U>
+pub struct CallbacksFn<F, U>
 where
     F: Fn(Packet<'_, U>, &[u8]) + Sync,
     U: UserDataPtr,
@@ -49,12 +49,12 @@ where
     _marker: PhantomData<fn(U)>,
 }
 
-impl<F, U> OnCompletionFn<F, U>
+impl<F, U> CallbacksFn<F, U>
 where
     F: Fn(Packet<'_, U>, &[u8]) + Sync,
     U: UserDataPtr,
 {
-    pub fn new(inner: F) -> Self
+    pub const fn new(inner: F) -> Self
     where
         F: Sync,
         U: UserDataPtr,
@@ -66,24 +66,24 @@ where
     }
 }
 
-impl<F, U> OnCompletion for OnCompletionFn<F, U>
+impl<F, U> Callbacks for CallbacksFn<F, U>
 where
     F: Fn(Packet<'_, U>, &[u8]) + Sync,
     U: UserDataPtr,
 {
     type UserDataPtr = U;
 
-    fn call(&self, packet: Packet<'_, Self::UserDataPtr>, payload: &[u8]) {
+    fn on_completion(&self, packet: Packet<'_, Self::UserDataPtr>, payload: &[u8]) {
         (self.inner)(packet, payload)
     }
 }
 
-pub fn on_completion_fn<U, F>(f: F) -> OnCompletionFn<F, U>
+pub const fn on_completion_fn<U, F>(f: F) -> CallbacksFn<F, U>
 where
     F: Fn(Packet<'_, U>, &[u8]) + Sync,
     U: UserDataPtr,
 {
-    OnCompletionFn::new(f)
+    CallbacksFn::new(f)
 }
 
 pub(crate) unsafe extern "C" fn on_completion_raw_fn<F>(
@@ -93,16 +93,18 @@ pub(crate) unsafe extern "C" fn on_completion_raw_fn<F>(
     payload: *const u8,
     payload_size: u32,
 ) where
-    F: OnCompletion,
+    F: Callbacks,
 {
     let _ = catch_unwind(|| {
         let cb = &*sptr::from_exposed_addr::<F>(ctx);
-        let payload = slice::from_raw_parts(
-                payload,
-                payload_size
+        let payload_size = payload_size
                     .try_into()
-                    .expect("At the start of calling on_completion callback: unable to convert payload_size from u32 into usize")
-            );
+                    .expect("At the start of calling on_completion callback: unable to convert payload_size from u32 into usize");
+        let payload = if payload_size != 0 {
+            slice::from_raw_parts(payload, payload_size)
+        } else {
+            &[]
+        };
         let packet = Packet {
             raw: packet,
             handle: super::ClientHandle {
@@ -110,7 +112,7 @@ pub(crate) unsafe extern "C" fn on_completion_raw_fn<F>(
                 on_completion: cb,
             },
         };
-        cb.call(packet, payload)
+        cb.on_completion(packet, payload)
     });
 }
 
@@ -142,6 +144,6 @@ mod user_data_ptr {
 }
 
 pub trait UserData {
-    /// Borrow the data to send
+    /// Borrow the data to send.
     fn data(&self) -> &[u8];
 }

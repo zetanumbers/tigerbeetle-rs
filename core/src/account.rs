@@ -120,6 +120,23 @@ impl Account {
     }
 }
 
+impl std::fmt::Debug for Account {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Account")
+            .field("id", &self.id())
+            .field("user_data", &self.user_data())
+            .field("ledger", &self.ledger())
+            .field("code", &self.code())
+            .field("flags", &self.flags())
+            .field("debits_pending", &self.debits_pending())
+            .field("debits_posted", &self.debits_posted())
+            .field("credits_pending", &self.credits_pending())
+            .field("credits_posted", &self.credits_posted())
+            .field("timestamp", &self.timestamp())
+            .finish_non_exhaustive()
+    }
+}
+
 impl From<Raw> for Account {
     fn from(value: Raw) -> Self {
         Account(value)

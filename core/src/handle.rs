@@ -3,7 +3,7 @@ use std::{ffi::c_void, num::NonZeroU32, ptr};
 use crate::{error::AcquirePacketError, sys};
 
 use super::{
-    callback::{OnCompletion, UserDataPtr},
+    callback::{Callbacks, UserDataPtr},
     packet, Packet,
 };
 
@@ -12,7 +12,7 @@ where
     U: UserDataPtr,
 {
     pub(crate) raw: sys::tb_client_t,
-    pub(crate) on_completion: &'a dyn OnCompletion<UserDataPtr = U>,
+    pub(crate) on_completion: &'a dyn Callbacks<UserDataPtr = U>,
 }
 
 unsafe impl<U> Send for ClientHandle<'_, U> where U: UserDataPtr {}

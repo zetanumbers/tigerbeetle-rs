@@ -1,44 +1,50 @@
+pub mod account;
 mod callback;
+pub mod error;
 mod handle;
-pub mod packet;
+mod packet;
+pub mod transfer;
+pub mod util;
 
 use std::{marker::PhantomData, mem, num::NonZeroU32};
 
-use crate::{
-    error::{AcquirePacketError, NewClientError, NewClientErrorKind},
-    sys,
-};
+use tigerbeetle_sys::{self as sys, generated_safe as sys_safe};
 
+use error::{AcquirePacketError, NewClientError, NewClientErrorKind};
+
+pub use account::Account;
 pub use callback::*;
 pub use handle::ClientHandle;
-pub use packet::Packet;
+pub use packet::*;
+pub use transfer::Transfer;
 
 type OnCompletionRawFn =
     unsafe extern "C" fn(usize, sys::tb_client_t, *mut sys::tb_packet_t, *const u8, u32);
 
 pub struct Client<F>
 where
-    F: OnCompletionPtr,
+    F: CallbacksPtr,
 {
     raw: sys::tb_client_t,
     on_completion: *const F::Target,
     marker: PhantomData<F>,
 }
 
-unsafe impl<F> Send for Client<F> where F: OnCompletionPtr + Send {}
-unsafe impl<F> Sync for Client<F> where F: OnCompletionPtr {}
+unsafe impl<F> Send for Client<F> where F: CallbacksPtr + Send {}
+unsafe impl<F> Sync for Client<F> where F: CallbacksPtr {}
 
 impl<F> Client<F>
 where
-    F: OnCompletionPtr,
+    F: CallbacksPtr,
 {
-    pub fn with_callback(
+    pub fn with_callback<A>(
         cluster_id: u32,
-        address: &[u8],
+        address: A,
         concurrency_max: u32,
         on_completion: F,
     ) -> Result<Self, NewClientError>
     where
+        A: AsRef<[u8]>,
         // `F` and `UserDataPtr` are 'static because we can `mem::forget(self)`
         // and drop anything that is being refered from `F` or `UserDataPtr`,
         // thus invalidating callback or user data.
@@ -60,12 +66,15 @@ where
     /// to ensure validity of `on_completion` callback or packet's `user_data`
     /// for client's use. If client is dropped, you can safely invalidate these
     /// things.
-    pub unsafe fn with_callback_unchecked(
+    pub unsafe fn with_callback_unchecked<A>(
         cluster_id: u32,
-        address: &[u8],
+        address: A,
         concurrency_max: u32,
         on_completion: F,
-    ) -> Result<Self, NewClientError> {
+    ) -> Result<Self, NewClientError>
+    where
+        A: AsRef<[u8]>,
+    {
         let on_completion_fn = callback::on_completion_raw_fn::<F::Target>;
         let on_completion = F::into_raw_const_ptr(on_completion);
         let on_completion_ctx = sptr::Strict::expose_addr(on_completion);
@@ -101,7 +110,7 @@ where
             raw: unsafe {
                 raw_with_callback(
                     cluster_id,
-                    address,
+                    address.as_ref(),
                     concurrency_max,
                     on_completion_ctx,
                     on_completion_fn,
@@ -131,7 +140,7 @@ where
 /// Blocks until all pending requests finish
 impl<F> Drop for Client<F>
 where
-    F: OnCompletionPtr,
+    F: CallbacksPtr,
 {
     fn drop(&mut self) {
         unsafe {

@@ -86,3 +86,33 @@ unsafe impl<T: ?Sized> RawConstPtr for Pin<Rc<T>> {
         Pin::new_unchecked(Rc::from_raw_const_ptr(ptr))
     }
 }
+
+unsafe impl<T: ?Sized> RawConstPtr for &T {
+    fn into_raw_const_ptr(this: Self) -> *const Self::Target {
+        this as _
+    }
+
+    unsafe fn from_raw_const_ptr(ptr: *const Self::Target) -> Self {
+        &*ptr
+    }
+}
+
+unsafe impl<T: ?Sized> RawConstPtr for &mut T {
+    fn into_raw_const_ptr(this: Self) -> *const Self::Target {
+        (this as *mut Self::Target).cast_const()
+    }
+
+    unsafe fn from_raw_const_ptr(ptr: *const Self::Target) -> Self {
+        &mut *ptr.cast_mut()
+    }
+}
+
+unsafe impl<'a, T: ?Sized> RawConstPtr for Pin<&'a mut T> {
+    fn into_raw_const_ptr(this: Self) -> *const Self::Target {
+        <&'a mut T>::into_raw_const_ptr(unsafe { this.get_unchecked_mut() })
+    }
+
+    unsafe fn from_raw_const_ptr(ptr: *const Self::Target) -> Self {
+        Pin::new_unchecked(<&'a mut T>::from_raw_const_ptr(ptr))
+    }
+}

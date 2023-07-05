@@ -1,10 +1,6 @@
-pub mod account;
 mod blob;
-pub mod error;
 pub mod low;
 mod packet_guard;
-pub mod transfer;
-pub mod util;
 
 use std::{
     mem,
@@ -21,10 +17,7 @@ use error::{
     NewClientError, NewClientErrorKind, SendError, SendErrorKind,
 };
 use packet_guard::PacketGuard;
-use tigerbeetle_sys::{self as sys, generated_safe as sys_safe};
 use tokio::sync::{oneshot as async_oneshot, Semaphore as AsyncSemaphore};
-
-pub use crate::{account::Account, transfer::Transfer};
 
 #[derive(Clone)]
 pub struct Client {
