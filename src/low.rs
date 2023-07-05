@@ -1,74 +1,36 @@
+mod callback;
+mod handle;
 pub mod packet;
 
-use std::{
-    ffi::c_void, marker::PhantomData, mem, num::NonZeroU32, panic::catch_unwind, ptr, slice,
-};
+use std::{marker::PhantomData, mem, num::NonZeroU32};
 
 use crate::{
     error::{AcquirePacketError, NewClientError, NewClientErrorKind},
     sys,
-    util::RawConstPtr,
 };
 
+pub use callback::*;
+pub use handle::ClientHandle;
 pub use packet::Packet;
 
-type OnCompletionFn =
+type OnCompletionRawFn =
     unsafe extern "C" fn(usize, sys::tb_client_t, *mut sys::tb_packet_t, *const u8, u32);
 
-pub struct Client<F, U>
+pub struct Client<F>
 where
-    // `F::Target: Sync` because `F` is called from some zig thread.
-    // `U: Send` because we are sending user_data into the callback as an
-    // argument.
-    F: RawConstPtr,
-    F::Target: Sync,
-    U: RawConstPtr + Send,
+    F: OnCompletionPtr,
 {
     raw: sys::tb_client_t,
     on_completion: *const F::Target,
-    marker: PhantomData<(F, fn(U))>,
+    marker: PhantomData<F>,
 }
 
-pub struct ClientHandle<'a, U>
-where
-    U: RawConstPtr + Send,
-{
-    raw: sys::tb_client_t,
-    #[allow(clippy::complexity)]
-    _marker: PhantomData<(&'a sys::tb_client_t, fn(U))>,
-}
+unsafe impl<F> Send for Client<F> where F: OnCompletionPtr + Send {}
+unsafe impl<F> Sync for Client<F> where F: OnCompletionPtr {}
 
-impl<'a, U> Copy for ClientHandle<'a, U> where U: RawConstPtr + Send {}
-
-impl<'a, U> Clone for ClientHandle<'a, U>
+impl<F> Client<F>
 where
-    U: RawConstPtr + Send,
-{
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-unsafe impl<F, U> Send for Client<F, U>
-where
-    F: RawConstPtr + Send,
-    F::Target: Sync,
-    U: RawConstPtr + Send,
-{
-}
-unsafe impl<F, U> Sync for Client<F, U>
-where
-    F: RawConstPtr,
-    F::Target: Sync,
-    U: RawConstPtr + Send,
-{
-}
-
-impl<F, U> Client<F, U>
-where
-    F: RawConstPtr,
-    F::Target: Sync,
-    U: RawConstPtr + Send,
+    F: OnCompletionPtr,
 {
     pub fn with_callback(
         cluster_id: u32,
@@ -77,14 +39,13 @@ where
         on_completion: F,
     ) -> Result<Self, NewClientError>
     where
-        // `(F, U): 'static` because we can `mem::forget(self)` and drop anything
-        // that is being refered from `F` or `U`, thus invalidating callback or
-        // user data.
-        (F, U): 'static,
-        F::Target: Fn(Packet<'_, U>, &[u8]) + Sized,
-        <U as std::ops::Deref>::Target: Sized,
+        // `F` and `UserDataPtr` are 'static because we can `mem::forget(self)`
+        // and drop anything that is being refered from `F` or `UserDataPtr`,
+        // thus invalidating callback or user data.
+        F: 'static,
+        F::UserDataPtr: 'static,
     {
-        // SAFETY: F and U are 'static
+        // SAFETY: F and UserData are 'static
         unsafe {
             Client::with_callback_unchecked(cluster_id, address, concurrency_max, on_completion)
         }
@@ -104,12 +65,8 @@ where
         address: &[u8],
         concurrency_max: u32,
         on_completion: F,
-    ) -> Result<Self, NewClientError>
-    where
-        F::Target: Fn(Packet<'_, U>, &[u8]) + Sized,
-        <U as std::ops::Deref>::Target: Sized,
-    {
-        let on_completion_fn = on_completion_fn::<F::Target, U>;
+    ) -> Result<Self, NewClientError> {
+        let on_completion_fn = callback::on_completion_raw_fn::<F::Target>;
         let on_completion = F::into_raw_const_ptr(on_completion);
         let on_completion_ctx = sptr::Strict::expose_addr(on_completion);
 
@@ -118,7 +75,7 @@ where
             address: &[u8],
             concurrency_max: u32,
             on_completion_ctx: usize,
-            on_completion_fn: OnCompletionFn,
+            on_completion_fn: OnCompletionRawFn,
         ) -> Result<sys::tb_client_t, NewClientError> {
             let mut raw = mem::zeroed();
             let status = sys::tb_client_init(
@@ -155,35 +112,26 @@ where
         })
     }
 
-    pub fn handle(&self) -> ClientHandle<'_, U> {
+    pub fn handle(&self) -> ClientHandle<'_, F::UserDataPtr> {
         ClientHandle {
             raw: self.raw,
-            _marker: PhantomData,
+            on_completion: unsafe { &*self.on_completion },
         }
     }
 
-    /// # Panics
-    ///
-    /// Panics if `AsRef<[u8]>::as_ref(&*user_data).len()` overflows `u32`.
-    #[track_caller]
     pub fn acquire(
         &self,
-        user_data: U,
+        user_data: F::UserDataPtr,
         operation: packet::Operation,
-    ) -> Result<Packet<'_, U>, AcquirePacketError>
-    where
-        <U as std::ops::Deref>::Target: AsRef<[u8]> + Sized,
-    {
+    ) -> Result<Packet<'_, F::UserDataPtr>, AcquirePacketError> {
         self.handle().acquire(user_data, operation)
     }
 }
 
 /// Blocks until all pending requests finish
-impl<F, U> Drop for Client<F, U>
+impl<F> Drop for Client<F>
 where
-    F: RawConstPtr,
-    F::Target: Sync,
-    U: RawConstPtr + Send,
+    F: OnCompletionPtr,
 {
     fn drop(&mut self) {
         unsafe {
@@ -203,96 +151,4 @@ where
             F::from_raw_const_ptr(self.on_completion);
         }
     }
-}
-
-unsafe impl<U> Send for ClientHandle<'_, U> where U: RawConstPtr + Send {}
-unsafe impl<U> Sync for ClientHandle<'_, U> where U: RawConstPtr + Send {}
-
-impl<'a, U> ClientHandle<'a, U>
-where
-    U: RawConstPtr + Send,
-{
-    /// # Panics
-    ///
-    /// Panics if `AsRef<[u8]>::as_ref(&*user_data).len()` overflows `u32`.
-    #[track_caller]
-    pub fn acquire(
-        self,
-        user_data: U,
-        operation: packet::Operation,
-    ) -> Result<Packet<'a, U>, AcquirePacketError>
-    where
-        <U as std::ops::Deref>::Target: AsRef<[u8]> + Sized,
-    {
-        unsafe fn impl_(
-            raw_client: sys::tb_client_t,
-            user_data: *const c_void,
-            data: *const u8,
-            data_size: u32,
-            operation: u8,
-        ) -> Result<*mut sys::tb_packet_t, AcquirePacketError> {
-            let mut raw = ptr::null_mut();
-            let status = sys::tb_client_acquire_packet(raw_client, &mut raw);
-            if let Some(c) = NonZeroU32::new(status) {
-                return Err(AcquirePacketError(c));
-            }
-            raw.write(sys::tb_packet_t {
-                next: ptr::null_mut(),
-                user_data: user_data.cast_mut(),
-                operation,
-                status: 0,
-                data_size,
-                data: data.cast_mut().cast(),
-            });
-            Ok(raw)
-        }
-
-        let user_data = <U as RawConstPtr>::into_raw_const_ptr(user_data);
-        let data = unsafe { (*user_data).as_ref() };
-        let (data, data_size) = {
-            let data_size = match data.len().try_into() {
-                Ok(ds) => ds,
-                Err(e) => {
-                    drop(unsafe { <U as RawConstPtr>::from_raw_const_ptr(user_data) });
-                    panic!("data is too large: {e:?}")
-                }
-            };
-            (data.as_ptr(), data_size)
-        };
-
-        let raw = unsafe { impl_(self.raw, user_data.cast(), data, data_size, operation.0)? };
-        Ok(Packet {
-            raw_client: self.raw,
-            raw,
-            _marker: PhantomData,
-        })
-    }
-}
-
-unsafe extern "C" fn on_completion_fn<F, U>(
-    ctx: usize,
-    raw_client: sys::tb_client_t,
-    packet: *mut sys::tb_packet_t,
-    payload: *const u8,
-    payload_size: u32,
-) where
-    F: Fn(Packet<'_, U>, &[u8]) + Sync,
-    U: RawConstPtr + Send,
-    <U as std::ops::Deref>::Target: Sized,
-{
-    let _ = catch_unwind(|| {
-        let cb = sptr::from_exposed_addr::<F>(ctx);
-        let payload = slice::from_raw_parts(
-                payload,
-                payload_size
-                    .try_into()
-                    .expect("While calling on_completion callback: unable to convert payload_size from u32 into usize")
-            );
-        let packet = Packet {
-            raw_client,
-            raw: packet,
-            _marker: PhantomData,
-        };
-        (*cb)(packet, payload)
-    });
 }

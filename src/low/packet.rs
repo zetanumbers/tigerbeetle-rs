@@ -1,19 +1,23 @@
-use std::{marker::PhantomData, mem, num::NonZeroU8};
+use std::{mem, num::NonZeroU8};
 
-use crate::{error::SendError, sys, sys_safe, util::RawConstPtr};
+use crate::{
+    error::{SendError, SendErrorKind},
+    sys, sys_safe,
+};
 
 pub use sys_safe::OperationKind;
 
-use super::ClientHandle;
+use super::{
+    callback::{UserData, UserDataPtr},
+    ClientHandle,
+};
 
 pub struct Packet<'a, U>
 where
-    U: RawConstPtr + Send,
-    <U as std::ops::Deref>::Target: Sized,
+    U: UserDataPtr,
 {
-    pub(super) raw_client: sys::tb_client_t,
     pub(super) raw: *mut sys::tb_packet_t,
-    pub(super) _marker: PhantomData<(&'a sys::tb_client_t, U)>,
+    pub(super) handle: ClientHandle<'a, U>,
 }
 
 #[derive(Clone, Copy)]
@@ -21,24 +25,30 @@ pub struct Operation(pub(crate) u8);
 
 unsafe impl<U> Sync for Packet<'_, U>
 where
-    U: RawConstPtr + Send,
-    <U as std::ops::Deref>::Target: Sized + Sync,
+    U: UserDataPtr,
+    U::Pointee: Sync,
 {
 }
-unsafe impl<U> Send for Packet<'_, U>
-where
-    U: RawConstPtr + Send,
-    <U as std::ops::Deref>::Target: Sized,
-{
-}
+unsafe impl<U> Send for Packet<'_, U> where U: UserDataPtr {}
 
 impl<'a, U> Packet<'a, U>
 where
-    U: RawConstPtr + Send,
-    <U as std::ops::Deref>::Target: Sized,
+    U: UserDataPtr,
 {
-    pub fn submit(self) {
-        unsafe { sys::tb_client_submit(self.raw_client, self.raw) };
+    pub fn submit(mut self) {
+        let data = self.user_data().data();
+        let Ok(data_size) = data.len().try_into() else {
+            self.set_status(Err(SendErrorKind::TooMuchData.into()));
+            self.handle.on_completion.call(self, &[]);
+            return
+        };
+        let data = data.as_ptr();
+
+        let raw = self.raw_mut();
+        raw.data_size = data_size;
+        raw.data = data.cast_mut().cast();
+
+        unsafe { sys::tb_client_submit(self.handle.raw, self.raw) };
         mem::forget(self);
     }
 
@@ -55,7 +65,7 @@ where
         let user_data;
         unsafe {
             user_data = U::from_raw_const_ptr(this.raw().user_data.cast_const().cast());
-            sys::tb_client_release_packet(this.raw_client, this.raw);
+            sys::tb_client_release_packet(this.handle.raw, this.raw);
         }
         user_data
     }
@@ -85,18 +95,12 @@ where
         }
     }
 
-    pub fn data(&self) -> &[u8]
-    where
-        U::Target: AsRef<[u8]>,
-    {
-        self.user_data().as_ref()
+    pub fn data(&self) -> &[u8] {
+        self.user_data().data()
     }
 
     pub fn client_handle(&self) -> ClientHandle<'a, U> {
-        ClientHandle {
-            raw: self.raw_client,
-            _marker: PhantomData,
-        }
+        self.handle
     }
 
     pub fn operation(&self) -> Operation {
@@ -125,13 +129,12 @@ where
 
 impl<U> Drop for Packet<'_, U>
 where
-    U: RawConstPtr + Send,
-    <U as std::ops::Deref>::Target: Sized,
+    U: UserDataPtr,
 {
     fn drop(&mut self) {
         unsafe {
             U::from_raw_const_ptr(self.raw().user_data.cast_const().cast());
-            sys::tb_client_release_packet(self.raw_client, self.raw);
+            sys::tb_client_release_packet(self.handle.raw, self.raw);
         }
     }
 }
