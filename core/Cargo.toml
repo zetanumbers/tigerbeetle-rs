@@ -2,8 +2,14 @@
 name = "tigerbeetle-core"
 version = "0.2.0+0.13.36"
 edition = "2021"
+license = "MIT"
+
+[features]
+tokio-rt-multi-thread = ["dep:tokio", "tokio/rt-multi-thread"]
+tokio = ["dep:tokio"]
 
 [dependencies]
 tigerbeetle-sys = { version = "0.13.36", path = "../sys", features = ["generated-safe"] }
 bytemuck = "1.13.1"
 sptr = "0.3.2"
+tokio = { version = "1.28.1", optional = true }
