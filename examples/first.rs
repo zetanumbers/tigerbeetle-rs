@@ -18,7 +18,7 @@ async fn main() {
 
     let accounts = [Account::new(1, 777, 2), Account::new(2, 777, 2)];
     client
-        .create_accounts(accounts.into())
+        .create_accounts(accounts.to_vec())
         .await
         .expect("creating accounts");
     println!("Accounts created successfully");
@@ -34,7 +34,7 @@ async fn main() {
     let mut total_time = Duration::ZERO;
 
     for i in 0..MAX_BATCHES {
-        let transfers = (0..TRANSFERS_PER_BATCH)
+        let transfers: Vec<_> = (0..TRANSFERS_PER_BATCH)
             .map(|j| {
                 Transfer::new((j + 1 + i * TRANSFERS_PER_BATCH).try_into().unwrap())
                     .with_debit_account_id(accounts[0].id())
@@ -81,7 +81,7 @@ async fn main() {
     println!("Looking up accounts ...");
     let ids = accounts.map(|a| a.id());
     let accounts = client
-        .lookup_accounts(ids.into())
+        .lookup_accounts(ids.to_vec())
         .await
         .expect("looking up accounts");
     assert!(!accounts.is_empty());

@@ -118,7 +118,7 @@ fn main() {
     ////////////////////////////////////////////////////////////
 
     println!("Looking up accounts ...");
-    let ids = [accounts[0].id(), accounts[1].id()];
+    let ids = accounts.map(|a| a.id());
     user_data.set_data(ids);
     packet = client
         .acquire(user_data, tb::OperationKind::LookupAccounts.into())
