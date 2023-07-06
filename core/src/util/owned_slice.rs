@@ -6,8 +6,8 @@ use super::{send_marker, RawConstPtr, SendMarker};
 /// sequential containers where `T` is an element type. Has transformation from
 /// these types.
 ///
-/// `S` is marker type for `Send` trait. If it set to [`Sendable`], then
-/// [`OwnedSlice`] implements `Send`, or [`Unsendable`] for `!Send`.
+/// `S` is marker type for `Send` trait. If it set to [`send_marker::Sendable`], then
+/// [`OwnedSlice`] implements `Send`, or [`send_marker::Unsendable`] for `!Send`.
 /// There is [`SendOwnedSlice`] shortcut if you want sendable owned slice.
 pub struct OwnedSlice<T = Erased, S = send_marker::Unsendable>
 where
