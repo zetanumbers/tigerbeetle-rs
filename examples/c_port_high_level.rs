@@ -30,10 +30,14 @@ async fn main() {
     println!("Creating transfers...");
     const MAX_BATCHES: usize = 100;
     const TRANSFERS_PER_BATCH: usize = MAX_MESSAGE_BYTE_SIZE / std::mem::size_of::<Transfer>();
+    let max_batches = std::env::var("TIGERBEETLE_RS_MAX_BATCHES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(MAX_BATCHES);
     let mut max_latency = Duration::ZERO;
     let mut total_time = Duration::ZERO;
 
-    for i in 0..MAX_BATCHES {
+    for i in 0..max_batches {
         let transfers: Vec<_> = (0..TRANSFERS_PER_BATCH)
             .map(|j| {
                 Transfer::new((j + 1 + i * TRANSFERS_PER_BATCH).try_into().unwrap())
@@ -60,7 +64,7 @@ async fn main() {
     println!("============================================");
     println!(
         "{:.0} transfers per second",
-        (MAX_BATCHES * TRANSFERS_PER_BATCH) as f64 / total_time.as_secs_f64()
+        (max_batches * TRANSFERS_PER_BATCH) as f64 / total_time.as_secs_f64()
     );
     println!(
         "create_transfers max p100 latency per {} transfers = {}ms",
@@ -69,7 +73,7 @@ async fn main() {
     );
     println!(
         "total {} transfers in {}ms",
-        MAX_BATCHES * TRANSFERS_PER_BATCH,
+        max_batches * TRANSFERS_PER_BATCH,
         total_time.as_millis()
     );
     println!();
