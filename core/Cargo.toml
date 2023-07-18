@@ -8,7 +8,7 @@ description = "Safe low level callback-based async bindings to tigerbeetle clien
 repository.workspace = true
 license.workspace = true
 categories = ["api-bindings", "asynchronous", "database", "finance"]
-include = ["/src/**", "/examples/**", "/Cargo.toml", "/LICENSE-*"]
+include = ["/src/**", "/examples/**", "/Cargo.toml", "/LICENSE-*", "/README"]
 
 [features]
 tokio-rt-multi-thread = ["dep:tokio", "tokio/rt-multi-thread"]

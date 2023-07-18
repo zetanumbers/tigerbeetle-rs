@@ -8,7 +8,7 @@ description = "Native bindings to the tigerbeetle library"
 repository.workspace = true
 license.workspace = true
 categories = ["external-ffi-bindings"]
-include = ["/src/**", "/Cargo.toml", "/LICENSE-*", "build.rs"]
+include = ["/src/**", "/Cargo.toml", "/LICENSE-*", "/README.md", "/build.rs"]
 
 [features]
 generated-safe = []
