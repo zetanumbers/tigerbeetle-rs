@@ -1,6 +1,6 @@
 use std::{ffi::c_void, num::NonZeroU32, ptr};
 
-use crate::{error::AcquirePacketError, sys};
+use crate::error::AcquirePacketError;
 
 use super::{
     callback::{Callbacks, UserDataPtr},

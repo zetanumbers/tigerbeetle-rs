@@ -1,7 +1,7 @@
 use std::mem;
 use std::num::{NonZeroU32, NonZeroU8};
 
-use crate::{sys, sys_safe};
+use crate::sys_safe;
 
 pub use sys::tb_create_accounts_result_t as RawCreateAccountsIndividualApiResult;
 pub use sys::tb_create_transfers_result_t as RawCreateTransfersIndividualApiResult;

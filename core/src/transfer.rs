@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime};
 
-use crate::{sys, sys_safe};
+use crate::sys_safe;
 
 use bytemuck::{Pod, TransparentWrapper, Zeroable};
 

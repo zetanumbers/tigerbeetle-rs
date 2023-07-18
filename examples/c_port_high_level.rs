@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use tigerbeetle::{Account, Client, Transfer};
+use tigerbeetle_unofficial as tb;
 
 const MAX_MESSAGE_BYTE_SIZE: usize = (1024 * 1024) - 128;
 
@@ -10,13 +10,13 @@ async fn main() {
     println!("TigerBeetle C Sample");
     println!("Connecting...");
 
-    let client = Client::new(0, "127.0.0.1:3000", 32).expect("creating a tigerbeetle client");
+    let client = tb::Client::new(0, "127.0.0.1:3000", 32).expect("creating a tigerbeetle client");
 
     ////////////////////////////////////////////////////////////
     // Submitting a batch of accounts:                        //
     ////////////////////////////////////////////////////////////
 
-    let accounts = [Account::new(1, 777, 2), Account::new(2, 777, 2)];
+    let accounts = [tb::Account::new(1, 777, 2), tb::Account::new(2, 777, 2)];
     client
         .create_accounts(accounts.to_vec())
         .await
@@ -29,7 +29,7 @@ async fn main() {
 
     println!("Creating transfers...");
     const MAX_BATCHES: usize = 100;
-    const TRANSFERS_PER_BATCH: usize = MAX_MESSAGE_BYTE_SIZE / std::mem::size_of::<Transfer>();
+    const TRANSFERS_PER_BATCH: usize = MAX_MESSAGE_BYTE_SIZE / std::mem::size_of::<tb::Transfer>();
     let max_batches = std::env::var("TIGERBEETLE_RS_MAX_BATCHES")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -40,7 +40,7 @@ async fn main() {
     for i in 0..max_batches {
         let transfers: Vec<_> = (0..TRANSFERS_PER_BATCH)
             .map(|j| {
-                Transfer::new((j + 1 + i * TRANSFERS_PER_BATCH).try_into().unwrap())
+                tb::Transfer::new((j + 1 + i * TRANSFERS_PER_BATCH).try_into().unwrap())
                     .with_debit_account_id(accounts[0].id())
                     .with_credit_account_id(accounts[1].id())
                     .with_code(2)

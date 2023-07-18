@@ -1,8 +1,14 @@
 [package]
-name = "tigerbeetle-sys"
-version = "0.13.49"
+name = "tigerbeetle-unofficial-sys"
+version.workspace = true
+authors.workspace = true
 edition = "2021"
-license = "MIT"
+rust-version.workspace = true
+description = "Native bindings to the tigerbeetle library"
+repository.workspace = true
+license.workspace = true
+categories = ["external-ffi-bindings"]
+include = ["/src/**", "/Cargo.toml", "/LICENSE-*"]
 
 [features]
 generated-safe = []
@@ -14,7 +20,7 @@ bytemuck = { version = "1.13.1", features = ["derive"] }
 [build-dependencies]
 bindgen = "0.65.1"
 curl = "0.4.44"
-zip = "0.6.5"
+zip = { version = "0.6.5", features = ["deflate"], default-features = false }
 syn = { version = "2.0.16", features = ["parsing", "full", "printing", "visit"], default-features = false }
 quote = { version = "1.0.27", default-features = false }
 proc-macro2 = { version = "1.0.57", default-features = false }

@@ -2,7 +2,7 @@ use std::{mem, num::NonZeroU8};
 
 use crate::{
     error::{SendError, SendErrorKind},
-    sys, sys_safe,
+    sys_safe,
 };
 
 pub use sys_safe::OperationKind;

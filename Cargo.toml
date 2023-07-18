@@ -1,14 +1,20 @@
 [package]
-name = "tigerbeetle"
-version = "0.2.0+0.13.49"
+name = "tigerbeetle-unofficial"
+version.workspace = true
+authors.workspace = true
 edition = "2021"
-license = "MIT"
+rust-version.workspace = true
+description = "Safe high level async bindings to tigerbeetle client library."
+repository.workspace = true
+license.workspace = true
+categories = ["api-bindings", "asynchronous", "database", "finance"]
+include = ["/src/**", "/examples/**", "/Cargo.toml", "/LICENSE-*", "README.md"]
 
 [features]
-tokio-rt-multi-thread = ["tigerbeetle-core/tokio-rt-multi-thread"]
+tokio-rt-multi-thread = ["core/tokio-rt-multi-thread"]
 
 [dependencies]
-tigerbeetle-core = { version = "=0.2.0", path = "core" }
+core = { package = "tigerbeetle-unofficial-core", version = "=0.2.0", path = "core" }
 bytemuck = { version = "1.13.1", features = ["extern_crate_alloc"] }
 tokio = { version = "1.28.1", features = ["sync"] }
 
@@ -17,3 +23,10 @@ pollster = { version = "0.3.0", features = ["macro"] }
 
 [workspace]
 members = ["sys", "core"]
+
+[workspace.package]
+version = "0.2.0+0.13.39"
+authors = ["Daria Sukhonina <dariasukhonina@gmail.com>"]
+rust-version = "1.71"
+repository = "https://github.com/ZetaNumbers/tigerbeetle-rs"
+license = "MIT OR Apache-2.0"

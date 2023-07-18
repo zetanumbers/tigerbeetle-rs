@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, panic::catch_unwind, slice};
 
-use crate::{sys, util::RawConstPtr};
+use crate::util::RawConstPtr;
 
 use super::Packet;
 

@@ -8,12 +8,12 @@ use error::{NewClientError, NewClientErrorKind};
 use reply::Reply;
 use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
 
-use crate::core::{
+use core::{
     error::{CreateAccountsError, CreateTransfersError, SendError},
     util::{SendAsBytesOwnedSlice, SendOwnedSlice},
 };
 
-pub use tigerbeetle_core::{self as core, account, error, transfer, Account, Transfer};
+pub use core::{self, account, error, transfer, Account, Transfer};
 
 pub struct Client {
     inner: core::Client<&'static Callbacks>,

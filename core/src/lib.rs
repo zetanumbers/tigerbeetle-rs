@@ -8,7 +8,7 @@ pub mod util;
 
 use std::{marker::PhantomData, mem, num::NonZeroU32};
 
-use tigerbeetle_sys::{self as sys, generated_safe as sys_safe};
+use sys::generated_safe as sys_safe;
 
 use error::{AcquirePacketError, NewClientError, NewClientErrorKind};
 

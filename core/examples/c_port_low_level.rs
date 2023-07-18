@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tigerbeetle_core as tb;
+use tigerbeetle_unofficial_core as tb;
 
 const MAX_MESSAGE_SIZE: usize = (1024 * 1024) - 128;
 
