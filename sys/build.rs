@@ -11,8 +11,8 @@ use quote::quote;
 use syn::visit::Visit;
 use zip::ZipArchive;
 
-fn tigerbeetle_zip_url() -> &'static str {
-    "https://github.com/tigerbeetledb/tigerbeetle/archive/refs/tags/0.13.49.zip"
+fn tigerbeetle_zip_url() -> impl AsRef<str> {
+    "https://github.com/tigerbeetledb/tigerbeetle/archive/refs/tags/0.13.71.zip"
 }
 
 fn target_to_lib_dir(target: &str) -> Option<&'static str> {
@@ -45,7 +45,7 @@ fn main() {
     {
         // fetching data into `zip`
         let mut curl = Easy::new();
-        curl.url(&tigerbeetle_zip_url()).unwrap();
+        curl.url(tigerbeetle_zip_url().as_ref()).unwrap();
         curl.follow_location(true).unwrap();
         let mut transfer = curl.transfer();
         transfer
