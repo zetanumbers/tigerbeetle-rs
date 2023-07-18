@@ -1,19 +1,14 @@
 use std::{
     env,
     fs::File,
-    io::{Cursor, Write},
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
 };
 
-use curl::easy::Easy;
+use fs_extra::dir::CopyOptions;
 use quote::quote;
 use syn::visit::Visit;
-use zip::ZipArchive;
-
-fn tigerbeetle_zip_url() -> impl AsRef<str> {
-    "https://github.com/tigerbeetledb/tigerbeetle/archive/refs/tags/0.13.71.zip"
-}
 
 fn target_to_lib_dir(target: &str) -> Option<&'static str> {
     match target {
@@ -40,45 +35,16 @@ fn main() {
     let target_lib_subdir =
         target_to_lib_dir(&target).unwrap_or_else(|| panic!("target {target:?} is not supported"));
 
-    let mut zip = Vec::new();
-
-    {
-        // fetching data into `zip`
-        let mut curl = Easy::new();
-        curl.url(tigerbeetle_zip_url().as_ref()).unwrap();
-        curl.follow_location(true).unwrap();
-        let mut transfer = curl.transfer();
-        transfer
-            .write_function(|data| {
-                zip.extend_from_slice(data);
-                Ok(data.len())
-            })
-            .unwrap();
-        transfer.perform().expect("fetching tigerbeetle code");
-    }
-
-    let tigerbeetle_root = {
-        // extracting `zip` into a directory
-        let mut zip = ZipArchive::new(Cursor::new(zip))
-            .expect("creating zip archive handle from fetched data");
-
-        let mut root_files = zip
-            .file_names()
-            .map(Path::new)
-            .filter(|p| p.iter().nth(1).is_none());
-        let root = out_dir.join(root_files.next().expect("zip archive is empty"));
-        assert_eq!(
-            root_files.next(),
-            None,
-            "zip archive has multiple files at its root"
-        );
-        drop(root_files);
-
-        zip.extract(&out_dir)
-            .expect("extracting fetched tigerbeetle zip archive");
-
-        root
-    };
+    let tigerbeetle_root = out_dir.join("tigerbeetle");
+    fs_extra::dir::copy(
+        "tigerbeetle",
+        &tigerbeetle_root,
+        &CopyOptions {
+            copy_inside: true,
+            ..<_>::default()
+        },
+    )
+    .expect("copying tigerbeetle source to OUT_DIR");
 
     let status = Command::new(
         tigerbeetle_root

@@ -1,0 +1,3 @@
+[submodule "tigerbeetle"]
+	path = sys/tigerbeetle
+	url = https://github.com/tigerbeetledb/tigerbeetle
