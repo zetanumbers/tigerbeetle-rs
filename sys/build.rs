@@ -302,10 +302,10 @@ impl Visit<'_> for TigerbeetleVisitor {
                     .map(|(s, v, _)| {
                         let n = syn::Ident::new(s, v.span());
                         let s = camel_case_into_snake_case(s);
-                        quote!(#s => Self:: #n)
+                        quote!(#s => Some(Self:: #n))
                     })
                     .chain(std::iter::once(quote!(
-                        _ => Self::UnstableUncategorized
+                        _ => None
                     )));
 
                 let into_snake_case_str_branches = variants
@@ -330,6 +330,12 @@ impl Visit<'_> for TigerbeetleVisitor {
                         UnstableUncategorized
                     )));
 
+                let first_doc_str_from_snake_case_str =
+                    format!("Try parsing [`{new_enum_name}`] from a string slice");
+                let first_doc_str_into_snake_case_str = format!(
+                    "Returns a static string slice according to [`{new_enum_name}`] variant's name but in snake_case"
+                );
+
                 self.output.extend(quote! {
                     #[derive(Debug, Clone, Copy)]
                     #[non_exhaustive]
@@ -339,12 +345,18 @@ impl Visit<'_> for TigerbeetleVisitor {
                     }
 
                     impl #new_enum_ident {
-                        pub fn from_snake_case_str(s: &str) -> Self {
+                        #[doc = #first_doc_str_from_snake_case_str]
+                        #[doc = ""]
+                        #[doc = "# Stability"]
+                        #[doc = ""]
+                        #[doc = "Might return `Some` instead of `None` after a minor version bump"]
+                        pub fn from_snake_case_str(s: &str) -> Option<Self> {
                             match s {
                                 #(#from_snake_case_str_branches),*
                             }
                         }
 
+                        #[doc = #first_doc_str_into_snake_case_str]
                         pub fn into_snake_case_str(self) -> &'static str {
                             match self {
                                 #(#into_snake_case_str_branches),*
