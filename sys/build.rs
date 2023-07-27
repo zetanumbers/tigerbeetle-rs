@@ -2,6 +2,7 @@ use std::{
     env,
     fs::File,
     io::{Cursor, Write},
+    iter,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -296,6 +297,28 @@ impl Visit<'_> for TigerbeetleVisitor {
                     pub const #max_name: #repr_type = #j;
                 };
 
+                let from_snake_case_str_branches = variants
+                    .iter()
+                    .map(|(s, v, _)| {
+                        let n = syn::Ident::new(s, v.span());
+                        let s = camel_case_into_snake_case(s);
+                        quote!(#s => Self:: #n)
+                    })
+                    .chain(std::iter::once(quote!(
+                        _ => Self::UnstableUncategorized
+                    )));
+
+                let into_snake_case_str_branches = variants
+                    .iter()
+                    .map(|(s, v, _)| {
+                        let n = syn::Ident::new(s, v.span());
+                        let s = camel_case_into_snake_case(s);
+                        quote!(Self:: #n => #s)
+                    })
+                    .chain(std::iter::once(quote!(
+                        Self::UnstableUncategorized => unimplemented!("variant is not supported yet")
+                    )));
+
                 let variants = variants
                     .iter()
                     .map(|(n, v, _)| {
@@ -306,12 +329,27 @@ impl Visit<'_> for TigerbeetleVisitor {
                         #[doc(hidden)]
                         UnstableUncategorized
                     )));
+
                 self.output.extend(quote! {
                     #[derive(Debug, Clone, Copy)]
                     #[non_exhaustive]
                     #[repr( #repr_type )]
                     pub enum #new_enum_ident {
                         #(#variants),*
+                    }
+
+                    impl #new_enum_ident {
+                        pub fn from_snake_case_str(s: &str) -> Self {
+                            match s {
+                                #(#from_snake_case_str_branches),*
+                            }
+                        }
+
+                        pub fn into_snake_case_str(self) -> &'static str {
+                            match self {
+                                #(#into_snake_case_str_branches),*
+                            }
+                        }
                     }
                 });
                 self.output.extend(extra);
@@ -434,5 +472,27 @@ fn screaming_snake_case_into_camel_case(src: &str) -> String {
         dst.push(ch);
         dst.extend(chars.map(|c| c.to_ascii_lowercase()));
     }
+    dst
+}
+
+fn camel_case_into_snake_case(src: &str) -> String {
+    let mut chars = src.chars();
+    let Some(ch) = chars.next() else {
+        return String::new();
+    };
+    assert!(ch.is_ascii_uppercase());
+
+    let mut dst = String::with_capacity(src.len() * 2);
+    dst.push(ch.to_ascii_lowercase());
+
+    dst.extend(chars.flat_map(|c| {
+        if c.is_ascii_uppercase() {
+            Some('_')
+                .into_iter()
+                .chain(iter::once(c.to_ascii_lowercase()))
+        } else {
+            None.into_iter().chain(iter::once(c))
+        }
+    }));
     dst
 }
