@@ -1,20 +1,16 @@
 use std::{
+    collections::BTreeMap,
     env,
+    ffi::{OsStr, OsString},
     fs::File,
-    io::{Cursor, Write},
+    io::{self, Write},
     iter,
-    path::{Path, PathBuf},
+    path::{self, Path, PathBuf},
     process::Command,
 };
 
-use curl::easy::Easy;
 use quote::quote;
 use syn::visit::Visit;
-use zip::ZipArchive;
-
-fn tigerbeetle_zip_url() -> impl AsRef<str> {
-    "https://github.com/tigerbeetledb/tigerbeetle/archive/refs/tags/0.13.71.zip"
-}
 
 fn target_to_lib_dir(target: &str) -> Option<&'static str> {
     match target {
@@ -41,45 +37,23 @@ fn main() {
     let target_lib_subdir =
         target_to_lib_dir(&target).unwrap_or_else(|| panic!("target {target:?} is not supported"));
 
-    let mut zip = Vec::new();
-
-    {
-        // fetching data into `zip`
-        let mut curl = Easy::new();
-        curl.url(tigerbeetle_zip_url().as_ref()).unwrap();
-        curl.follow_location(true).unwrap();
-        let mut transfer = curl.transfer();
-        transfer
-            .write_function(|data| {
-                zip.extend_from_slice(data);
-                Ok(data.len())
-            })
-            .unwrap();
-        transfer.perform().expect("fetching tigerbeetle code");
-    }
-
-    let tigerbeetle_root = {
-        // extracting `zip` into a directory
-        let mut zip = ZipArchive::new(Cursor::new(zip))
-            .expect("creating zip archive handle from fetched data");
-
-        let mut root_files = zip
-            .file_names()
-            .map(Path::new)
-            .filter(|p| p.iter().nth(1).is_none());
-        let root = out_dir.join(root_files.next().expect("zip archive is empty"));
-        assert_eq!(
-            root_files.next(),
-            None,
-            "zip archive has multiple files at its root"
-        );
-        drop(root_files);
-
-        zip.extract(&out_dir)
-            .expect("extracting fetched tigerbeetle zip archive");
-
-        root
-    };
+    let tigerbeetle_root = out_dir.join("tigerbeetle");
+    std::fs::remove_dir_all(&tigerbeetle_root)
+        .or_else(|e| {
+            if let io::ErrorKind::NotFound = e.kind() {
+                Ok(())
+            } else {
+                Err(e)
+            }
+        })
+        .unwrap();
+    create_mirror(
+        "tigerbeetle".as_ref(),
+        &tigerbeetle_root,
+        &["src/clients/c/lib", "zig-cache", "zig-out", "zig"]
+            .into_iter()
+            .collect(),
+    );
 
     let status = Command::new(
         tigerbeetle_root
@@ -141,7 +115,7 @@ fn main() {
         visitor.visit_file(&bindings);
 
         let generated_path = out_dir.join("generated.rs");
-        let mut f = std::io::BufWriter::new(File::create(&generated_path).unwrap());
+        let mut f = io::BufWriter::new(File::create(&generated_path).unwrap());
         write!(f, "{}", visitor.output).unwrap();
         drop(f);
 
@@ -168,15 +142,21 @@ impl Visit<'_> for TigerbeetleVisitor {
                 break 'process;
             }
 
-            let Some((_, content)) = &i.content else { break 'process };
+            let Some((_, content)) = &i.content else {
+                break 'process;
+            };
             let mut type_exists = false;
             let mut variants = Vec::new();
             assert!(content.len() > 1);
             for item in content {
                 match item {
                     syn::Item::Const(c) => {
-                        let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(i), ..}) = &*c.expr else {
-                            break 'process
+                        let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Int(i),
+                            ..
+                        }) = &*c.expr
+                        else {
+                            break 'process;
                         };
                         let i = i.base10_parse::<u32>().unwrap();
                         variants.push((c.ident.to_string(), c.ident.clone(), i));
@@ -507,4 +487,148 @@ fn camel_case_into_snake_case(src: &str) -> String {
         }
     }));
     dst
+}
+
+fn create_mirror(original: &Path, mirror: &Path, ignores: &IgnoreNode) {
+    if ignores.ignored() {
+        return;
+    }
+
+    assert!(!mirror.exists(), "mirror path is occupied already");
+    let mirror_parent = mirror
+        .parent()
+        .expect("mirror should have parent directory");
+    assert!(mirror_parent.is_dir(), "mirror's parent is not a directory");
+
+    if ignores.inner_is_empty() {
+        let original = original
+            .canonicalize()
+            .expect("Could not canonicalize original path");
+
+        let common_root = original
+            .iter()
+            .zip(mirror.iter())
+            .take_while(|(a, b)| a == b)
+            .map(|(a, _)| a)
+            .collect::<PathBuf>();
+
+        let mirror_from_common = mirror.strip_prefix(&common_root).unwrap();
+        let original_from_common = original.strip_prefix(&common_root).unwrap();
+        let link_original: PathBuf = (0..mirror_from_common.iter().count() - 1)
+            .map(|_| Path::new(".."))
+            .chain(iter::once(original_from_common))
+            .collect();
+
+        return symlink(link_original, mirror).expect("Symlinking the mirror fragment");
+    }
+
+    let original_traversal = original
+        .read_dir()
+        .expect("Initiating traversal of original directory");
+    std::fs::create_dir(mirror).expect("Creating mirror dir");
+    for entry in original_traversal {
+        let entry = entry.expect("Reading original directory");
+        let entry_name = entry.file_name();
+        create_mirror(
+            &original.join(&entry_name),
+            &mirror.join(&entry_name),
+            ignores.get(&entry_name),
+        );
+    }
+}
+
+#[derive(Default)]
+struct IgnoreNode {
+    inner: BTreeMap<OsString, IgnoreNode>,
+    ignored: bool,
+}
+
+impl IgnoreNode {
+    const fn new() -> Self {
+        IgnoreNode {
+            inner: BTreeMap::new(),
+            ignored: false,
+        }
+    }
+
+    fn get(&self, path_component: &OsStr) -> &IgnoreNode {
+        static EMPTY: IgnoreNode = IgnoreNode::new();
+        self.inner.get(path_component).unwrap_or(&EMPTY)
+    }
+
+    fn ignored(&self) -> bool {
+        self.ignored
+    }
+
+    fn inner_is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    fn insert(&mut self, path: &Path) {
+        path.components().for_each(|c| {
+            assert!(
+                matches!(c, path::Component::Normal(_)),
+                "path component {c:?} must be `Normal(_)` instead"
+            )
+        });
+
+        fn impl_(node: &mut IgnoreNode, path: &Path) {
+            let mut iter = path.iter();
+            let Some(component) = iter.next() else {
+                    panic!("path is empty")
+                };
+            let v = node.inner.entry(component.to_owned()).or_default();
+            let path = iter.as_path();
+            if path == Path::new("") {
+                v.ignored = true;
+                return;
+            }
+            impl_(v, path)
+        }
+
+        impl_(self, path)
+    }
+}
+
+impl<A: AsRef<Path>> Extend<A> for IgnoreNode {
+    fn extend<T: IntoIterator<Item = A>>(&mut self, iter: T) {
+        for path in iter {
+            self.insert(path.as_ref())
+        }
+    }
+}
+
+impl<A: AsRef<Path>> FromIterator<A> for IgnoreNode {
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        let mut out = Self::new();
+        out.extend(iter);
+        out
+    }
+}
+
+fn symlink<P, Q>(original: P, link: Q) -> io::Result<()>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(original, link);
+    #[cfg(windows)]
+    return {
+        let meta = link
+            .as_ref()
+            .parent()
+            .ok_or(io::ErrorKind::NotFound)?
+            .join(original.as_ref())
+            .metadata()?;
+        if meta.is_file() {
+            std::os::windows::fs::symlink_file(original, link)
+        } else if meta.is_dir() {
+            std::os::windows::fs::symlink_dir(original, link)
+        } else {
+            Err(io::ErrorKind::NotFound.into())
+        }
+    };
+    #[cfg(not(any(unix, windows)))]
+    unimplemented!("symlink on current platform is not supported")
 }
