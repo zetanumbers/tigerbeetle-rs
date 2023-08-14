@@ -7,6 +7,7 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 /// Available only with `generated-safe` feature
 #[cfg(feature = "generated-safe")]
 #[allow(clippy::unnecessary_cast, clippy::assign_op_pattern)]
+#[doc(hidden)]
 pub mod generated_safe {
     include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 }

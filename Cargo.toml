@@ -22,7 +22,7 @@ tokio = { version = "1.28.1", features = ["sync"] }
 pollster = { version = "0.3.0", features = ["macro"] }
 
 [workspace]
-members = ["sys", "core"]
+members = ["sys", "core", "xtask"]
 
 [workspace.package]
 version = "0.2.1+0.13.71"

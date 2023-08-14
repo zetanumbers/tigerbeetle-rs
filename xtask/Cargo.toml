@@ -1,0 +1,11 @@
+[package]
+name = "xtask"
+edition = "2021"
+version.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+cargo_metadata = "0.17.0"

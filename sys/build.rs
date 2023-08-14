@@ -34,62 +34,74 @@ fn main() {
     let out_dir: PathBuf = env::var("OUT_DIR").unwrap().into();
     let debug: bool = env::var("DEBUG").unwrap().parse().unwrap();
     let target = env::var("TARGET").unwrap();
-    let target_lib_subdir =
-        target_to_lib_dir(&target).unwrap_or_else(|| panic!("target {target:?} is not supported"));
 
-    let tigerbeetle_root = out_dir.join("tigerbeetle");
-    std::fs::remove_dir_all(&tigerbeetle_root)
-        .or_else(|e| {
-            if let io::ErrorKind::NotFound = e.kind() {
-                Ok(())
-            } else {
-                Err(e)
-            }
-        })
-        .unwrap();
-    create_mirror(
-        "tigerbeetle".as_ref(),
-        &tigerbeetle_root,
-        &["src/clients/c/lib", "zig-cache", "zig-out", "zig"]
-            .into_iter()
-            .collect(),
-    );
-
-    let status = Command::new(
-        tigerbeetle_root
-            .join("scripts/install_zig")
-            .with_extension(SCRIPT_EXTENSION),
-    )
-    .current_dir(&tigerbeetle_root)
-    .status()
-    .expect("running install script");
-    assert!(status.success(), "install script failed with {status:?}");
-
-    let status = Command::new(
-        tigerbeetle_root
-            .join("scripts/build")
-            .with_extension(SCRIPT_EXTENSION),
-    )
-    .current_dir(&tigerbeetle_root)
-    .arg("c_client")
-    .args((!debug).then_some("-Drelease-safe"))
-    .status()
-    .expect("running build script");
-    assert!(status.success(), "install script failed with {status:?}");
-
-    let lib_dir = tigerbeetle_root.join("src/clients/c/lib");
-    let link_search = lib_dir.join(target_lib_subdir);
-    println!(
-        "cargo:rustc-link-search=native={}",
-        link_search
-            .to_str()
-            .expect("link search directory path is not valid unicode")
-    );
-    println!("cargo:rustc-link-lib=static=tb_client");
-
+    println!("cargo:rerun-if-env-changed=DOCS_RS");
     println!("cargo:rerun-if-changed=src/wrapper.h");
-    let wrapper = lib_dir.join("include/wrapper.h");
-    std::fs::copy("src/wrapper.h", &wrapper).expect("copying wrapper.h");
+
+    let wrapper;
+    if std::env::var("DOCS_RS").is_ok() {
+        wrapper = "src/wrapper.h".into();
+    } else {
+        let target_lib_subdir = target_to_lib_dir(&target)
+            .unwrap_or_else(|| panic!("target {target:?} is not supported"));
+
+        let tigerbeetle_root = out_dir.join("tigerbeetle");
+        std::fs::remove_dir_all(&tigerbeetle_root)
+            .or_else(|e| {
+                if let io::ErrorKind::NotFound = e.kind() {
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            })
+            .unwrap();
+        create_mirror(
+            "tigerbeetle".as_ref(),
+            &tigerbeetle_root,
+            &["src/clients/c/lib", "zig-cache", "zig-out", "zig"]
+                .into_iter()
+                .collect(),
+        );
+
+        let status = Command::new(
+            tigerbeetle_root
+                .join("scripts/install_zig")
+                .with_extension(SCRIPT_EXTENSION),
+        )
+        .current_dir(&tigerbeetle_root)
+        .status()
+        .expect("running install script");
+        assert!(status.success(), "install script failed with {status:?}");
+
+        let status = Command::new(
+            tigerbeetle_root
+                .join("zig/zig")
+                .with_extension(env::consts::EXE_EXTENSION)
+                .canonicalize()
+                .unwrap(),
+        )
+        .arg("build")
+        .arg("c_client")
+        .args((!debug).then_some("-Drelease-safe"))
+        .arg(format!("-Dtarget={target_lib_subdir}"))
+        .current_dir(&tigerbeetle_root)
+        .status()
+        .expect("running zig build subcommand");
+        assert!(status.success(), "install script failed with {status:?}");
+
+        let lib_dir = tigerbeetle_root.join("src/clients/c/lib");
+        let link_search = lib_dir.join(target_lib_subdir);
+        println!(
+            "cargo:rustc-link-search=native={}",
+            link_search
+                .to_str()
+                .expect("link search directory path is not valid unicode")
+        );
+        println!("cargo:rustc-link-lib=static=tb_client");
+
+        wrapper = lib_dir.join("include/wrapper.h");
+        std::fs::copy("src/wrapper.h", &wrapper).expect("copying wrapper.h");
+    };
 
     let bindings = bindgen::Builder::default()
         .header(
