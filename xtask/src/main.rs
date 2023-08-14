@@ -1,4 +1,8 @@
-use std::{env, process::Command};
+use std::{
+    env,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 fn print_help() {
     eprintln!(
@@ -29,16 +33,20 @@ fn main() -> std::process::ExitCode {
 }
 
 fn regenerate_header() {
-    let metadata = cargo_metadata::MetadataCommand::new()
-        .exec()
-        .expect("Running cargo metadata command");
-    let sys_pkg = metadata
-        .packages
-        .iter()
-        .filter(|p| metadata.workspace_members.contains(&p.id))
-        .find(|p| p.name == "tigerbeetle-unofficial-sys")
-        .expect("Could not find `tigerbeetle-unofficial-sys` package");
-    let sys_root = sys_pkg.manifest_path.parent().unwrap();
+    let output = Command::new(env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+        .arg("locate-project")
+        .arg("--message-format=plain")
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("Running `cargo locate-project` command");
+    assert!(
+        output.status.success(),
+        "`cargo locate-project` command failed"
+    );
+    let workspace_manifest =
+        String::from_utf8(output.stdout).expect("Workspace manifest path is not UTF-8");
+    let workspace_manifest = Path::new(workspace_manifest.trim());
+    let sys_root = workspace_manifest.parent().unwrap().join("sys");
     let tb_root = sys_root.join("tigerbeetle");
 
     let status = Command::new(
@@ -51,6 +59,7 @@ fn regenerate_header() {
     .expect("Executing install_zig script");
     assert!(status.success(), "install_zig script failed");
 
+    eprintln!("Running zig build command...");
     let status = Command::new(
         tb_root
             .join("zig/zig")
@@ -63,11 +72,14 @@ fn regenerate_header() {
     .expect("Execution C client build");
     assert!(status.success(), "C client build command have failed");
 
+    eprintln!("Copying the generated header...");
     std::fs::copy(
         tb_root.join("src/clients/c/lib/include/tb_client.h"),
         sys_root.join("src/tb_client.h"),
     )
     .expect("Copying generated tb_client.h into sys/src dir");
+
+    eprintln!("Done!")
 }
 
 #[cfg(windows)]
