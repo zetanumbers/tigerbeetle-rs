@@ -58,7 +58,7 @@ fn main() {
         create_mirror(
             "tigerbeetle".as_ref(),
             &tigerbeetle_root,
-            &["src/clients/c/lib", "zig-cache", "zig-out", "zig"]
+            &["src/clients/c/lib", "zig-cache", "zig-out", "zig", ".git"]
                 .into_iter()
                 .collect(),
         );
@@ -70,8 +70,11 @@ fn main() {
         )
         .current_dir(&tigerbeetle_root)
         .status()
-        .expect("running install script");
-        assert!(status.success(), "install script failed with {status:?}");
+        .expect("running install_zig script");
+        assert!(
+            status.success(),
+            "install_zig script failed with {status:?}"
+        );
 
         let status = Command::new(
             tigerbeetle_root
@@ -87,7 +90,7 @@ fn main() {
         .current_dir(&tigerbeetle_root)
         .status()
         .expect("running zig build subcommand");
-        assert!(status.success(), "install script failed with {status:?}");
+        assert!(status.success(), "zig build failed with {status:?}");
 
         let lib_dir = tigerbeetle_root.join("src/clients/c/lib");
         let link_search = lib_dir.join(target_lib_subdir);
