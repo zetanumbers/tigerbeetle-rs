@@ -35,6 +35,7 @@ fn main() -> std::process::ExitCode {
 fn regenerate_header() {
     let output = Command::new(env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
         .arg("locate-project")
+        .arg("--workspace")
         .arg("--message-format=plain")
         .stderr(Stdio::inherit())
         .output()
