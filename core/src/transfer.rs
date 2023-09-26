@@ -71,14 +71,36 @@ impl Transfer {
         self
     }
 
-    pub const fn user_data(&self) -> u128 {
-        self.0.user_data
+    pub const fn user_data_128(&self) -> u128 {
+        self.0.user_data_128
     }
-    pub fn set_user_data(&mut self, user_data: u128) {
-        self.0.user_data = user_data;
+    pub fn set_user_data_128(&mut self, user_data_128: u128) {
+        self.0.user_data_128 = user_data_128;
     }
-    pub const fn with_user_data(mut self, user_data: u128) -> Self {
-        self.0.user_data = user_data;
+    pub const fn with_user_data_128(mut self, user_data_128: u128) -> Self {
+        self.0.user_data_128 = user_data_128;
+        self
+    }
+
+    pub const fn user_data_64(&self) -> u64 {
+        self.0.user_data_64
+    }
+    pub fn set_user_data_64(&mut self, user_data_64: u64) {
+        self.0.user_data_64 = user_data_64;
+    }
+    pub const fn with_user_data_64(mut self, user_data_64: u64) -> Self {
+        self.0.user_data_64 = user_data_64;
+        self
+    }
+
+    pub const fn user_data_32(&self) -> u32 {
+        self.0.user_data_32
+    }
+    pub fn set_user_data_32(&mut self, user_data_32: u32) {
+        self.0.user_data_32 = user_data_32;
+    }
+    pub const fn with_user_data_32(mut self, user_data_32: u32) -> Self {
+        self.0.user_data_32 = user_data_32;
         self
     }
 
@@ -126,26 +148,26 @@ impl Transfer {
         self
     }
 
-    pub const fn timeout(&self) -> Duration {
-        Duration::from_nanos(self.0.timeout)
+    pub const fn timeout(&self) -> u32 {
+        self.0.timeout
     }
     #[track_caller]
-    pub fn set_timeout(&mut self, timeout: Duration) {
-        self.0.timeout = timeout.as_nanos().try_into().expect("timeout is too large");
+    pub fn set_timeout(&mut self, timeout: u32) {
+        self.0.timeout = timeout;
     }
     #[track_caller]
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+    pub fn with_timeout(mut self, timeout: u32) -> Self {
         self.set_timeout(timeout);
         self
     }
 
-    pub const fn amount(&self) -> u64 {
+    pub const fn amount(&self) -> u128 {
         self.0.amount
     }
-    pub fn set_amount(&mut self, amount: u64) {
+    pub fn set_amount(&mut self, amount: u128) {
         self.0.amount = amount;
     }
-    pub const fn with_amount(mut self, amount: u64) -> Self {
+    pub const fn with_amount(mut self, amount: u128) -> Self {
         self.0.amount = amount;
         self
     }
@@ -161,13 +183,15 @@ impl std::fmt::Debug for Transfer {
             .field("id", &self.id())
             .field("debit_account_id", &self.debit_account_id())
             .field("credit_account_id", &self.credit_account_id())
-            .field("user_data", &self.user_data())
+            .field("amount", &self.amount())
+            .field("pending_id", &self.pending_id())
+            .field("user_data_128", &self.user_data_128())
+            .field("user_data_64", &self.user_data_64())
+            .field("user_data_32", &self.user_data_32())
+            .field("timeout", &self.timeout())
             .field("ledger", &self.ledger())
             .field("code", &self.code())
-            .field("pending_id", &self.pending_id())
             .field("flags", &self.flags())
-            .field("timeout", &self.timeout())
-            .field("amount", &self.amount())
             .field("timestamp", &self.timestamp())
             .finish_non_exhaustive()
     }

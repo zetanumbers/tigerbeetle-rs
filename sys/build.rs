@@ -85,7 +85,7 @@ fn main() {
         )
         .arg("build")
         .arg("c_client")
-        .args((!debug).then_some("-Drelease-safe"))
+        .args((!debug).then_some("-Doptimize=ReleaseSafe"))
         .arg(format!("-Dtarget={target_lib_subdir}"))
         .current_dir(&tigerbeetle_root)
         .status()
@@ -103,6 +103,13 @@ fn main() {
         println!("cargo:rustc-link-lib=static=tb_client");
 
         wrapper = lib_dir.join("include/wrapper.h");
+        let generated_header = lib_dir.join("include/tb_client.h");
+        assert!(
+            std::fs::read_to_string(&generated_header).expect("reading generated `tb_client.h`")
+                == std::fs::read_to_string("src/tb_client.h")
+                    .expect("reading pregenerated `tb_client.h`"),
+            "generated and pregenerated `tb_client.h` headers must be equal, generated at: {generated_header:?}",
+        );
         std::fs::copy("src/wrapper.h", &wrapper).expect("copying wrapper.h");
     };
 
@@ -475,7 +482,7 @@ fn screaming_snake_case_into_camel_case(src: &str) -> String {
     for word in src.split('_') {
         let mut chars = word.chars();
         let Some(ch) = chars.next() else { continue };
-        assert!(ch.is_ascii_uppercase());
+        assert!(ch.is_ascii_uppercase() || ch.is_ascii_digit());
         dst.push(ch);
         dst.extend(chars.map(|c| c.to_ascii_lowercase()));
     }

@@ -52,14 +52,36 @@ impl Account {
         self
     }
 
-    pub const fn user_data(&self) -> u128 {
-        self.0.user_data
+    pub const fn user_data_128(&self) -> u128 {
+        self.0.user_data_128
     }
-    pub fn set_user_data(&mut self, user_data: u128) {
-        self.0.user_data = user_data;
+    pub fn set_user_data_128(&mut self, user_data_128: u128) {
+        self.0.user_data_128 = user_data_128;
     }
-    pub const fn with_user_data(mut self, user_data: u128) -> Self {
-        self.0.user_data = user_data;
+    pub const fn with_user_data_128(mut self, user_data_128: u128) -> Self {
+        self.0.user_data_128 = user_data_128;
+        self
+    }
+
+    pub const fn user_data_64(&self) -> u64 {
+        self.0.user_data_64
+    }
+    pub fn set_user_data_64(&mut self, user_data_64: u64) {
+        self.0.user_data_64 = user_data_64;
+    }
+    pub const fn with_user_data_64(mut self, user_data_64: u64) -> Self {
+        self.0.user_data_64 = user_data_64;
+        self
+    }
+
+    pub const fn user_data_32(&self) -> u32 {
+        self.0.user_data_32
+    }
+    pub fn set_user_data_32(&mut self, user_data_32: u32) {
+        self.0.user_data_32 = user_data_32;
+    }
+    pub const fn with_user_data_32(mut self, user_data_32: u32) -> Self {
+        self.0.user_data_32 = user_data_32;
         self
     }
 
@@ -102,16 +124,16 @@ impl Account {
         self
     }
 
-    pub const fn debits_pending(&self) -> u64 {
+    pub const fn debits_pending(&self) -> u128 {
         self.0.debits_pending
     }
-    pub const fn debits_posted(&self) -> u64 {
+    pub const fn debits_posted(&self) -> u128 {
         self.0.debits_posted
     }
-    pub const fn credits_pending(&self) -> u64 {
+    pub const fn credits_pending(&self) -> u128 {
         self.0.credits_pending
     }
-    pub const fn credits_posted(&self) -> u64 {
+    pub const fn credits_posted(&self) -> u128 {
         self.0.credits_posted
     }
 
@@ -124,14 +146,16 @@ impl std::fmt::Debug for Account {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Account")
             .field("id", &self.id())
-            .field("user_data", &self.user_data())
-            .field("ledger", &self.ledger())
-            .field("code", &self.code())
-            .field("flags", &self.flags())
             .field("debits_pending", &self.debits_pending())
             .field("debits_posted", &self.debits_posted())
             .field("credits_pending", &self.credits_pending())
             .field("credits_posted", &self.credits_posted())
+            .field("user_data_128", &self.user_data_128())
+            .field("user_data_64", &self.user_data_64())
+            .field("user_data_32", &self.user_data_32())
+            .field("ledger", &self.ledger())
+            .field("code", &self.code())
+            .field("flags", &self.flags())
             .field("timestamp", &self.timestamp())
             .finish_non_exhaustive()
     }
