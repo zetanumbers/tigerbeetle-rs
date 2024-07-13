@@ -106,13 +106,19 @@ where
 
         Ok(Client {
             raw: unsafe {
-                raw_with_callback(
+                match raw_with_callback(
                     cluster_id,
                     address.as_ref(),
                     concurrency_max,
                     on_completion_ctx,
                     on_completion_fn,
-                )?
+                ) {
+                    Ok(x) => x,
+                    Err(err) => {
+                        F::from_raw_const_ptr(on_completion);
+                        return Err(err);
+                    }
+                }
             },
             on_completion,
             marker: PhantomData,
