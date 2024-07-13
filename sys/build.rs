@@ -210,14 +210,22 @@ impl Visit<'_> for TigerbeetleVisitor {
             let mut new_enum_ident = syn::Ident::new(&new_enum_name, enum_ident.span());
 
             if enum_name.ends_with("_FLAGS") {
+                let ty = syn::Ident::new(
+                    match enum_name.as_str() {
+                        "TB_ACCOUNT_FILTER_FLAGS" => "u32",
+                        "TB_ACCOUNT_FLAGS" | "TB_TRANSFER_FLAGS" => "u16",
+                        other => panic!("unexpected flags type name: {other}"),
+                    },
+                    enum_ident.span(),
+                );
                 let variants = variants.iter().map(|(n, v, _)| {
                     let n = syn::Ident::new(n, v.span());
-                    quote!(const #n = super:: #enum_ident :: #v as u16;)
+                    quote!(const #n = super:: #enum_ident :: #v as #ty;)
                 });
                 self.output.extend(quote! {
                     ::bitflags::bitflags! {
                         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-                        pub struct #new_enum_ident: u16 {
+                        pub struct #new_enum_ident: #ty {
                             #(#variants)*
                         }
                     }
@@ -386,6 +394,8 @@ impl bindgen::callbacks::ParseCallbacks for TigerbeetleCallbacks {
             kind: bindgen::callbacks::TypeKind::Struct,
             name:
                 "tb_account_t"
+                | "tb_account_balance_t"
+                | "tb_account_filter_t"
                 | "tb_create_accounts_result_t"
                 | "tb_transfer_t"
                 | "tb_create_transfers_result_t",

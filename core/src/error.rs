@@ -1,15 +1,13 @@
 use std::mem;
 use std::num::{NonZeroU32, NonZeroU8};
 
-use crate::sys_safe;
-
-pub use sys::tb_create_accounts_result_t as RawCreateAccountsIndividualApiResult;
-pub use sys::tb_create_transfers_result_t as RawCreateTransfersIndividualApiResult;
-pub use sys_safe::{
-    CreateAccountErrorKind, CreateTransferErrorKind,
+pub use sys::generated_safe::{
+    self as sys_safe, CreateAccountErrorKind, CreateTransferErrorKind,
     PacketAcquireStatusErrorKind as AcquirePacketErrorKind, PacketStatusErrorKind as SendErrorKind,
     StatusErrorKind as NewClientErrorKind,
 };
+pub use sys::tb_create_accounts_result_t as RawCreateAccountsIndividualApiResult;
+pub use sys::tb_create_transfers_result_t as RawCreateTransfersIndividualApiResult;
 
 #[derive(Clone, Copy)]
 pub struct NewClientError(pub(crate) NonZeroU32);

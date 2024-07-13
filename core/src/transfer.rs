@@ -1,11 +1,9 @@
 use std::time::{Duration, SystemTime};
 
-use crate::sys_safe;
-
 use bytemuck::{Pod, TransparentWrapper, Zeroable};
 
+pub use sys::generated_safe::TransferFlags as Flags;
 pub use sys::tb_transfer_t as Raw;
-pub use sys_safe::TransferFlags as Flags;
 
 #[repr(transparent)]
 #[derive(Clone, Copy, TransparentWrapper, Pod, Zeroable)]

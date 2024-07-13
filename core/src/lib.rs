@@ -8,8 +8,6 @@ pub mod util;
 
 use std::{marker::PhantomData, mem, num::NonZeroU32};
 
-use sys::generated_safe as sys_safe;
-
 use error::{AcquirePacketError, NewClientError, NewClientErrorKind};
 
 pub use account::Account;

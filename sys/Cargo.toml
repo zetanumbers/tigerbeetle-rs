@@ -14,7 +14,7 @@ generated-safe = []
 
 [dependencies]
 bitflags = "2.3.0"
-bytemuck = { version = "1.13.1", features = ["derive"] }
+bytemuck = { version = "1.13.1", features = ["derive", "min_const_generics"] }
 
 [build-dependencies]
 bindgen = "0.65.1"

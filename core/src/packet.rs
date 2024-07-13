@@ -1,11 +1,8 @@
 use std::{mem, num::NonZeroU8};
 
-use crate::{
-    error::{SendError, SendErrorKind},
-    sys_safe,
-};
+use crate::error::{SendError, SendErrorKind};
 
-pub use sys_safe::OperationKind;
+pub use sys::generated_safe::OperationKind;
 
 use super::{
     callback::{UserData, UserDataPtr},
@@ -40,7 +37,7 @@ where
         let Ok(data_size) = data.len().try_into() else {
             self.set_status(Err(SendErrorKind::TooMuchData.into()));
             self.handle.on_completion.on_completion(self, &[]);
-            return
+            return;
         };
         let data = data.as_ptr();
 
@@ -141,7 +138,7 @@ where
 
 impl Operation {
     const CODE_RANGE: std::ops::RangeInclusive<u8> =
-        sys_safe::MIN_OPERATION_CODE..=sys_safe::MAX_OPERATION_CODE;
+        sys::generated_safe::MIN_OPERATION_CODE..=sys::generated_safe::MAX_OPERATION_CODE;
 
     pub fn kind(self) -> OperationKind {
         if Self::CODE_RANGE.contains(&self.0) {
