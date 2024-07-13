@@ -14,7 +14,7 @@ include = ["/src/**", "/examples/**", "/Cargo.toml", "/LICENSE-*", "README.md"]
 tokio-rt-multi-thread = ["core/tokio-rt-multi-thread"]
 
 [dependencies]
-core = { package = "tigerbeetle-unofficial-core", version = "=0.3.0", path = "core" }
+core = { package = "tigerbeetle-unofficial-core", version = "=0.4.0", path = "core" }
 bytemuck = { version = "1.13.1", features = ["extern_crate_alloc"] }
 tokio = { version = "1.28.1", features = ["sync"] }
 
@@ -25,8 +25,8 @@ pollster = { version = "0.3.0", features = ["macro"] }
 members = ["sys", "core"]
 
 [workspace.package]
-version = "0.3.0+0.13.133"
+version = "0.4.0+0.15.3"
 authors = ["Daria Sukhonina <dariasukhonina@gmail.com>"]
-rust-version = "1.71"
+rust-version = "1.78"
 repository = "https://github.com/ZetaNumbers/tigerbeetle-rs"
 license = "MIT OR Apache-2.0"

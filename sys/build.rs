@@ -85,7 +85,7 @@ fn main() {
         )
         .arg("build")
         .arg("c_client")
-        .args((!debug).then_some("-Doptimize=ReleaseSafe"))
+        .args((!debug).then_some("-Drelease"))
         .arg(format!("-Dtarget={target_lib_subdir}"))
         .current_dir(&tigerbeetle_root)
         .status()
@@ -597,8 +597,8 @@ impl IgnoreNode {
         fn impl_(node: &mut IgnoreNode, path: &Path) {
             let mut iter = path.iter();
             let Some(component) = iter.next() else {
-                    panic!("path is empty")
-                };
+                panic!("path is empty")
+            };
             let v = node.inner.entry(component.to_owned()).or_default();
             let path = iter.as_path();
             if path == Path::new("") {

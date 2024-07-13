@@ -38,7 +38,7 @@ where
     F: CallbacksPtr,
 {
     pub fn with_callback<A>(
-        cluster_id: u32,
+        cluster_id: u128,
         address: A,
         concurrency_max: u32,
         on_completion: F,
@@ -67,7 +67,7 @@ where
     /// for client's use. If client is dropped, you can safely invalidate these
     /// things.
     pub unsafe fn with_callback_unchecked<A>(
-        cluster_id: u32,
+        cluster_id: u128,
         address: A,
         concurrency_max: u32,
         on_completion: F,
@@ -80,7 +80,7 @@ where
         let on_completion_ctx = sptr::Strict::expose_addr(on_completion);
 
         unsafe fn raw_with_callback(
-            cluster_id: u32,
+            cluster_id: u128,
             address: &[u8],
             concurrency_max: u32,
             on_completion_ctx: usize,

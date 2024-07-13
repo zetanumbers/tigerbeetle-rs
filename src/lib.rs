@@ -29,7 +29,11 @@ struct UserData {
 }
 
 impl Client {
-    pub fn new<A>(cluster_id: u32, address: A, concurrency_max: u32) -> Result<Self, NewClientError>
+    pub fn new<A>(
+        cluster_id: u128,
+        address: A,
+        concurrency_max: u32,
+    ) -> Result<Self, NewClientError>
     where
         A: AsRef<[u8]>,
     {
