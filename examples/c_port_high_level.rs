@@ -2,15 +2,16 @@ use std::time::{Duration, Instant};
 
 use tigerbeetle_unofficial as tb;
 
-const MAX_MESSAGE_BYTE_SIZE: usize = (1024 * 1024) - 128;
+const MAX_MESSAGE_BYTE_SIZE: usize = (1024 * 1024) - 256;
 
 // Crate is runtime agnostic, so you can use tokio or any other async runtime
 #[pollster::main]
 async fn main() {
     println!("TigerBeetle C Sample");
     println!("Connecting...");
-
-    let client = tb::Client::new(0, "127.0.0.1:3000", 32).expect("creating a tigerbeetle client");
+    let address = std::env::var("TB_ADDRESS");
+    let address = address.as_deref().unwrap_or("3000");
+    let client = tb::Client::new(0, address, 32).expect("creating a tigerbeetle client");
 
     ////////////////////////////////////////////////////////////
     // Submitting a batch of accounts:                        //

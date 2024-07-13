@@ -7,7 +7,7 @@ use std::{
 
 use tigerbeetle_unofficial_core as tb;
 
-const MAX_MESSAGE_SIZE: usize = (1024 * 1024) - 128;
+const MAX_MESSAGE_SIZE: usize = (1024 * 1024) - 256;
 
 struct Callbacks;
 
@@ -33,7 +33,8 @@ struct CompletionState {
 fn main() {
     println!("TigerBeetle C Sample");
     println!("Connecting...");
-    let address = "127.0.0.1:3000";
+    let address = std::env::var("TB_ADDRESS");
+    let address = address.as_deref().unwrap_or("3000");
     let client = tb::Client::with_callback(0, address.as_bytes(), 32, &Callbacks)
         .expect("Failed to initialize tigerbeetle client");
 
