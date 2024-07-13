@@ -2,6 +2,11 @@
 
 Unofficial [tigerbeetle] bindings for Rust.
 
+## Status
+
+Because this tigerbeetle client library implementation is not a part of the official tigerbeetle repo, it is hard to ensure and keep some of rust safety guarantees from the outside.
+For that reason I invite people to contribute to this repo or finally develop the official rust client library.
+
 ## Repo Overview
 
 The repository hosts the following libraries:
