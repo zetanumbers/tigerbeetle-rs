@@ -177,6 +177,22 @@ where
     }
 }
 
+impl<T: Sized> SendOwnedSlice<T> {
+    pub fn from_single<P>(value: P) -> Self
+    where
+        P: RawConstPtr<Target = T> + Send + 'static,
+    {
+        unsafe fn drop_impl<P, T>(ptr: NonNull<Erased>, _: usize, _: usize)
+        where
+            P: RawConstPtr<Target = T> + 'static,
+        {
+            P::from_raw_const_ptr(ptr.as_ptr() as *const T);
+        }
+        let ptr = unsafe { NonNull::new_unchecked(P::into_raw_const_ptr(value).cast_mut()) };
+        unsafe { OwnedSlice::from_raw_parts(ptr.cast(), 1, 0, drop_impl::<P, T>) }
+    }
+}
+
 impl<P, T> From<P> for OwnedSlice<T>
 where
     P: RawConstPtr<Target = [T]> + 'static,
@@ -194,6 +210,21 @@ where
         }
         let ptr = unsafe { NonNull::new_unchecked(P::into_raw_const_ptr(value).cast_mut()) };
         unsafe { OwnedSlice::from_raw_parts(ptr.cast(), ptr.len(), 0, drop_impl::<P, T>) }
+    }
+}
+impl<T: Sized> OwnedSlice<T> {
+    pub fn from_single<P>(value: P) -> Self
+    where
+        P: RawConstPtr<Target = T> + 'static,
+    {
+        unsafe fn drop_impl<P, T>(ptr: NonNull<Erased>, _: usize, _: usize)
+        where
+            P: RawConstPtr<Target = T> + 'static,
+        {
+            P::from_raw_const_ptr(ptr.as_ptr() as *const T);
+        }
+        let ptr = unsafe { NonNull::new_unchecked(P::into_raw_const_ptr(value).cast_mut()) };
+        unsafe { OwnedSlice::from_raw_parts(ptr.cast(), 1, 0, drop_impl::<P, T>) }
     }
 }
 

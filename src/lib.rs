@@ -10,7 +10,7 @@ use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
 
 use core::{
     error::{CreateAccountsError, CreateTransfersError, SendError},
-    util::{SendAsBytesOwnedSlice, SendOwnedSlice},
+    util::{RawConstPtr, SendAsBytesOwnedSlice, SendOwnedSlice},
 };
 
 pub use core::{self, account, error, transfer, Account, Transfer};
@@ -79,6 +79,35 @@ impl Client {
             )
             .await?
             .into_create_transfers()?)
+    }
+
+    pub async fn get_account_balances<T>(
+        &self,
+        filter: T,
+    ) -> Result<Vec<account::Balance>, SendError>
+    where
+        T: RawConstPtr<Target = account::Filter> + Send + 'static,
+    {
+        let filter: SendOwnedSlice<account::Filter> = SendOwnedSlice::from_single(filter);
+        self.submit(
+            filter.into_as_bytes(),
+            core::OperationKind::GetAccountBalances.into(),
+        )
+        .await
+        .map(Reply::into_get_account_balances)
+    }
+
+    pub async fn get_account_transfers<T>(&self, filter: T) -> Result<Vec<Transfer>, SendError>
+    where
+        T: RawConstPtr<Target = account::Filter> + Send + 'static,
+    {
+        let filter: SendOwnedSlice<account::Filter> = SendOwnedSlice::from_single(filter);
+        self.submit(
+            filter.into_as_bytes(),
+            core::OperationKind::GetAccountTransfers.into(),
+        )
+        .await
+        .map(Reply::into_get_account_transfers)
     }
 
     pub async fn lookup_accounts<T>(&self, ids: T) -> Result<Vec<Account>, SendError>

@@ -1,4 +1,5 @@
 use crate::{
+    account,
     core::OperationKind,
     error::{CreateAccountsApiError, CreateTransfersApiError},
     Account, Transfer,
@@ -8,6 +9,8 @@ use crate::{
 pub enum Reply {
     CreateAccounts(Result<(), CreateAccountsApiError>),
     CreateTransfers(Result<(), CreateTransfersApiError>),
+    GetAccountBalances(Vec<account::Balance>),
+    GetAccountTransfers(Vec<Transfer>),
     LookupAccounts(Vec<Account>),
     LookupTransfers(Vec<Transfer>),
 }
@@ -24,6 +27,12 @@ impl Reply {
                 let results = bytemuck::pod_collect_to_vec(payload);
                 let e = CreateTransfersApiError::from_raw_results(results);
                 Reply::CreateTransfers(e.map_or(Ok(()), Err))
+            }
+            OperationKind::GetAccountBalances => {
+                Reply::GetAccountBalances(bytemuck::pod_collect_to_vec(payload))
+            }
+            OperationKind::GetAccountTransfers => {
+                Reply::GetAccountTransfers(bytemuck::pod_collect_to_vec(payload))
             }
             OperationKind::LookupAccounts => {
                 Reply::LookupAccounts(bytemuck::pod_collect_to_vec(payload))
@@ -48,6 +57,22 @@ impl Reply {
             out
         } else {
             panic!("wrong reply variant, expected CreateTransfers but found: {self:?}")
+        }
+    }
+
+    pub fn into_get_account_balances(self) -> Vec<account::Balance> {
+        if let Reply::GetAccountBalances(out) = self {
+            out
+        } else {
+            panic!("wrong reply variant, expected GetAccountBalances but found: {self:?}")
+        }
+    }
+
+    pub fn into_get_account_transfers(self) -> Vec<Transfer> {
+        if let Reply::GetAccountTransfers(out) = self {
+            out
+        } else {
+            panic!("wrong reply variant, expected GetAccountTransfers but found: {self:?}")
         }
     }
 
