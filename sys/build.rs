@@ -83,6 +83,7 @@ fn main() {
                 .canonicalize()
                 .unwrap(),
         )
+        .env("TIGERBEETLE_RELEASE", "0.15.3")
         .arg("build")
         .arg("c_client")
         .args((!debug).then_some("-Drelease"))
