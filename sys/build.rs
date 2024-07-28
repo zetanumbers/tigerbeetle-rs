@@ -12,6 +12,8 @@ use std::{
 use quote::quote;
 use syn::visit::Visit;
 
+const TIGERBEETLE_RELEASE: &str = "0.15.3";
+
 fn target_to_lib_dir(target: &str) -> Option<&'static str> {
     match target {
         "aarch64-unknown-linux-gnu" => Some("aarch64-linux-gnu"),
@@ -31,6 +33,7 @@ const SCRIPT_EXTENSION: &str = "sh";
 const SCRIPT_EXTENSION: &str = "bat";
 
 fn main() {
+    assert!(env!("CARGO_PKG_VERSION").ends_with(TIGERBEETLE_RELEASE));
     let out_dir: PathBuf = env::var("OUT_DIR").unwrap().into();
     let debug: bool = env::var("DEBUG").unwrap().parse().unwrap();
     let target = env::var("TARGET").unwrap();
@@ -87,6 +90,7 @@ fn main() {
         .arg("c_client")
         .args((!debug).then_some("-Drelease"))
         .arg(format!("-Dtarget={target_lib_subdir}"))
+        .env("TIGERBEETLE_RELEASE", TIGERBEETLE_RELEASE)
         .current_dir(&tigerbeetle_root)
         .status()
         .expect("running zig build subcommand");
