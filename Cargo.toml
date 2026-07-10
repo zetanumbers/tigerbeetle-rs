@@ -20,7 +20,7 @@ fastrand = "2.3"
 tokio = { version = "1.28.1", features = ["sync"] }
 
 [dev-dependencies]
-pollster = { version = "0.4", features = ["macro"] }
+pollster = { version = "1.0", features = ["macro"] }
 
 [workspace]
 members = ["sys", "core"]
