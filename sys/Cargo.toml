@@ -20,4 +20,4 @@ bytemuck = { version = "1.19", features = ["derive", "min_const_generics"] }
 bindgen = "0.72"
 proc-macro2 = { version = "1.0.80", default-features = false }
 quote = { version = "1.0", default-features = false }
-syn = { version = "2.0", features = ["parsing", "full", "printing", "visit", "visit-mut"], default-features = false }
+syn = { version = "3.0", features = ["parsing", "full", "printing", "visit", "visit-mut"], default-features = false }
